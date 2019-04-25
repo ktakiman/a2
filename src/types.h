@@ -8,6 +8,8 @@
 
 constexpr int INDENT_UNIT = 2;
 
+namespace a2 {
+
 enum class EBlockType {
   None,
   Constants,
@@ -43,5 +45,7 @@ struct A2 {
   std::unordered_map<std::string, std::unique_ptr<ConstantsData>> constants;
   std::vector<TableEntry> table;
 };
+
+}
 
 #endif

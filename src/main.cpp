@@ -10,6 +10,8 @@
 #include "types.h"
 #include "parser.h"
 
+using namespace a2;
+
 int main(int argc, char* argv[]) {
   if (argc == 0) {
     std::cout << "usage: a2.exe [input file]" << std::endl;

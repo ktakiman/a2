@@ -4,6 +4,8 @@
 
 #include <stdlib.h> // for atoi, which can be replaced with std::stoi (except minGW/gcc?)
 
+namespace a2 {
+
 //------------------------------------------------------------------------------
 std::unique_ptr<ConstantsData> CreateConstantsData(const std::string& name, unsigned int value) {
   std::unique_ptr<ConstantsData> cd(new ConstantsData());
@@ -374,4 +376,6 @@ void DumpTable(const std::vector<TableEntry>& table) {
 void DumpA2(const A2& a2) {
   DumpConstants(a2.constants, 0);
   DumpTable(a2.table);
+}
+
 }

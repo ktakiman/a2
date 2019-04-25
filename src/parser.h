@@ -7,6 +7,8 @@
 
 #include "types.h"
 
+namespace a2 {
+
 //------------------------------------------------------------------------------
 std::unique_ptr<ConstantsData> CreateConstantsData(const std::string& name, unsigned int value = 0);
 
@@ -55,5 +57,7 @@ private:
 //------------------------------------------------------------------------------
 std::unique_ptr<A2> ParseA2(std::istream& from);
 void DumpA2(const A2& a2); 
+
+}
 
 #endif
