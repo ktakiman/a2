@@ -1,0 +1,40 @@
+_sys:
+  flashadr:         0x80000000
+  flashsz:          0x00004000
+  ramadr:           0x20000000
+  ramsz:            0x00001000
+
+_preph:
+  ahb1:             0x40021000
+    rcc:            0x00
+      cr:           0x00
+      cfgr:         0x04
+      cir:          0x08
+      apb2rstr:     0x0a
+      apb1rstr:     0x10
+      ahbenr:       0x14
+        .*:         0x11
+        .iopaen:    0x01
+        .iopben:    0x01
+        .iopcen:    0x01
+      apb2enr:      0x18
+  ahb2:             0x4800000
+    gpio_a:         0x0000
+      moder:        0x00
+      otyper:       0x04
+      ospeedr:      0x08
+      puprr:        0x0a
+      idr:          0x10
+      odr:          0x14
+      bsrr:         0x18
+    gpio_b:         0x0400
+    gpio_c:         0x0800
+
+#header:
+  stackadr: flashadr + flashsz
+  reset:    @reset
+
+reset:
+  BITSET(ahb1.rcc.ahbenr, iopaen)
+
+  
