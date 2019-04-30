@@ -31,10 +31,11 @@ _preph:
     gpio_c:         0x0800
 
 #header:
-  stackadr: flashadr + flashsz
-  reset:    @reset
+  stack_adr: flashadr + flashsz
+  reset_adr: @reset
 
 reset:
-  BITSET(ahb1.rcc.ahbenr, iopaen)
+  NOP
+  'BITSET(ahb1.rcc.ahbenr, iopaen)
 
   

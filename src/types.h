@@ -38,7 +38,7 @@ struct ConstantsData {
 struct TableEntry {
   std::string name;
   unsigned int value;
-  std::string dynamic;
+  std::string dynamic;  // takes the address of a function with name specified by this
 };
 
 struct A2 {

@@ -24,10 +24,19 @@ bool LineFetcher::Next(std::string& next) {
   while (!stream_.eof()) {
     std::getline(stream_, last_);
 
-    if (last_.length() > 0) { // skip empty lines
-      next = last_;
-      return true;
-    }
+    auto from = last_.find_first_not_of(' ');    // tabs are assumed to be converted to spaces with preprocessing
+    auto to = last_.find_last_not_of(' ');
+
+    if (from == std::string::npos) { continue; }
+
+    if (last_[from] == '\'') { continue; }   // comment starts with sigle quote, check first non-blank character
+    
+    last_ = last_.substr(0, to + 1);         // must leave spaces in front
+
+    std::cout << last_ << std::endl;
+
+    next = last_;
+    return true;
   }
 
   return false;
@@ -359,6 +368,10 @@ void DumpConstants(const std::unordered_map<std::string, std::unique_ptr<Constan
     }
 
     DumpConstants(pair.second->children, indent + 1);
+
+    if (indent == 0) {
+      std::cout << std::endl;
+    }
   }
 }
 //------------------------------------------------------------------------------
