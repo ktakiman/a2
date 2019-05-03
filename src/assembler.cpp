@@ -11,8 +11,8 @@ namespace {
 
 namespace {
 
-Piece MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
-  Piece p{};
+a2::Piece MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
+  a2::Piece p{};
   p.tag = 
   p.size = 2;
   p.value = code;

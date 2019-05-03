@@ -21,5 +21,5 @@ int main(int argc, char* argv[]) {
   std::ifstream fs(argv[1]);
   auto a2 = ParseA2(fs);
 
-  DumpA2(*a2.get());
+  //DumpA2(*a2.get());
 }

@@ -33,7 +33,7 @@ bool LineFetcher::Next(std::string& next) {
     
     last_ = last_.substr(0, to + 1);         // must leave spaces in front
 
-    std::cout << last_ << std::endl;
+    //std::cout << last_ << std::endl;
 
     next = last_;
     return true;
