@@ -21,10 +21,10 @@ a2::Piece MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
 
 using namespace a2;
 void DumpPieces(const std::vector<Piece>& a2s) {
-  std::cout << "--- pieces ---" << std::endl;
+  std::cout << std::endl << "--- pieces ---" << std::endl;
 
   for (auto& a2 : a2s) {
-    std::cout << a2.tag << ": " << ", " << a2.size << ", ";
+    std::cout << a2.tag << ": sz = " << a2.size << ", ";
     if (a2.resolved) {
       std::cout << a2.value;
     } else {

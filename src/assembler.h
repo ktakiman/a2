@@ -17,6 +17,7 @@ struct Piece {
 };
 
 void Assemble(const A2& a2, std::ostream& binary);
+
 }
 
 #endif
