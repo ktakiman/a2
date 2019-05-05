@@ -36,6 +36,7 @@ _preph:
 
 reset:
   NOP
+  B(reset)
   'BITSET(ahb1.rcc.ahbenr, iopaen)
 
   

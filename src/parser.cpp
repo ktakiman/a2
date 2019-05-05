@@ -50,7 +50,7 @@ bool BlockFetcher::Next(std::unique_ptr<BlockLinesFetcher>& blf) {
       blf.reset(new BlockLinesFetcher(lf_));
       //blf = std::make_unique<BlockLinesFetcher>(lf_);
 
-      int start = 0;
+      std::size_t start = 0;
 
       switch (line[0]) {
         case '_':
@@ -66,7 +66,7 @@ bool BlockFetcher::Next(std::unique_ptr<BlockLinesFetcher>& blf) {
           break;
       }
 
-      int len = line.length() - start - (line.back() == ':' ? 1 : 0);
+      auto len = line.length() - start - (line.back() == ':' ? 1 : 0);
       cur_block_name_ = line.substr(start, len);
       return true;
     } else {
@@ -92,30 +92,30 @@ bool BlockLinesFetcher::Next(std::string& line) {
   return false;
 }
 //------------------------------------------------------------------------------
-void ParseNameValueLine(const std::string& line, int* indent, std::string* name, std::string* value) {
+void ParseNameValueLine(const std::string& line, std::size_t* indent, std::string* name, std::string* value) {
   name->clear();
   *indent = 0;
   value->clear();
 
   // TODO: replace these with regex
-  int lead  = line.find_first_not_of(' ');
+  auto lead  = line.find_first_not_of(' ');
 
-  if (lead >= 0) {
+  if (lead != std::string::npos) {
     *indent = lead / INDENT_UNIT;
 
-    int colon = line.find_first_of(':');
-    if (colon >= 0) {
+    auto colon = line.find_first_of(':');
+    if (colon != std::string::npos) {
       *name = line.substr(lead, colon - lead);
 
-      int value_start = line.find_first_not_of(' ', colon + 1);
-      if (value_start >= 0) {
+      auto value_start = line.find_first_not_of(' ', colon + 1);
+      if (value_start != std::string::npos) {
         *value = line.substr(value_start, line.length() - value_start);
       }
     }
   }
 }
 //------------------------------------------------------------------------------
-void ParseNameValueLine(const std::string& line, int* indent, std::string* name, unsigned int* value) {
+void ParseNameValueLine(const std::string& line, std::size_t* indent, std::string* name, unsigned int* value) {
   std::string s;
   ParseNameValueLine(line, indent, name, &s);
 
@@ -131,7 +131,7 @@ void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A
     root = CreateConstantsData(block_name);
   }
 
-  int last_indent = 0;
+  std::size_t last_indent = 0;
   std::stack<ConstantsData*> stack;
   ConstantsData* parent = root.get();
   ConstantsData* last = root.get();
@@ -139,7 +139,7 @@ void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A
   std::string line;
   while (blf.Next(line)) {
 
-    int indent = 0;
+    std::size_t indent = 0;
     unsigned int value = 0;
     std::string name;
 
@@ -315,7 +315,7 @@ unsigned int ComputeFormula(const std::string& formula, const A2& a2) {
 void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
   std::string line;
   while (blf.Next(line)) {
-    int indent = 0;
+    std::size_t indent = 0;
     std::string name;
     std::string value;
     ParseNameValueLine(line, &indent, &name, &value);
@@ -335,9 +335,12 @@ void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
   }
 }
 //------------------------------------------------------------------------------
+void ProcCodeBlock(BlockLinesFetcher& blf, A2& a2) {
+}
+//------------------------------------------------------------------------------
 std::unique_ptr<A2> ParseA2(std::istream& from) {
-
-  auto a2 = std::unique_ptr<A2>(new A2());
+  //auto a2 = std::unique_ptr<A2>(new A2());
+  auto a2 = std::make_unique<A2>();
 
   auto lf = LineFetcher(from);
   auto bf = BlockFetcher(lf);

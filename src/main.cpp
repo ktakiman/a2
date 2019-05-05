@@ -23,4 +23,7 @@ int main(int argc, char* argv[]) {
     std::stringstream ss;
     Assemble(*a2.get(), ss);
   }
+  else {
+	  std::cout << "cannot find file: " << argv[1] << std::endl;
+  }
 }
