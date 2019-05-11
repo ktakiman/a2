@@ -1,5 +1,4 @@
-#ifndef __TYPES_H
-#define __TYPES_H
+#pragma once
 
 #include <string>
 #include <memory>
@@ -53,5 +52,3 @@ struct A2 {
 };
 
 }
-
-#endif

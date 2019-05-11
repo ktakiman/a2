@@ -1,5 +1,4 @@
-#ifndef __ASSEMBLER_H
-#define __ASSEMBLER_H
+#pragma once
 
 #include <iostream>
 #include <string>
@@ -19,5 +18,3 @@ struct Piece {
 void Assemble(const A2& a2, std::ostream& binary);
 
 }
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef __PARSER_H
-#define __PARSER_H
+#pragma once
 
 #include <memory>
 #include <iostream>
@@ -59,5 +58,3 @@ std::unique_ptr<A2> ParseA2(std::istream& from);
 void DumpA2(const A2& a2); 
 
 }
-
-#endif
