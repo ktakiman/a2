@@ -41,9 +41,15 @@ struct TableEntry {
   std::string dynamic;  // takes the address of a function with name specified by this
 };
 
+struct Instruction {
+  std::string func;
+  std::vector<std::string> args;
+};
+
 struct A2 {
   std::unordered_map<std::string, std::unique_ptr<ConstantsData>> constants;
   std::vector<TableEntry> table;
+  std::vector<Instruction> instructions;
 };
 
 }

@@ -1,6 +1,8 @@
 #include "parser.h"
 
 #include <stack>
+#include <numeric>
+#include <regex>
 
 #include <stdlib.h> // for atoi, which can be replaced with std::stoi (except minGW/gcc?)
 
@@ -193,7 +195,7 @@ inline bool IsArithmeticOp(char c) {
 unsigned int FindConstantValue(const std::string& s, const A2& a2) {
   std::string token;
   const ConstantsData* constants = nullptr;
-  for (int i = 0; i < s.length() + 1; i++) {
+  for (int i = 0; i <= s.length(); i++) {
     char c = i == s.length() ? '.' :s[i];
     if (c == '.') {
       if (constants == nullptr) {
@@ -245,7 +247,7 @@ unsigned int ComputeFormula(const std::string& formula, const A2& a2) {
   ETokenType type = ETokenType::None;
   unsigned int (*op)(unsigned int, unsigned int) = nullptr;
 
-  for (auto i = 0; i < formula.length() + 1; i++) {
+  for (auto i = 0; i <= formula.length(); i++) {
     char c = i == formula.length() ? ' ' : formula[i];
 
     if (IsArithmeticOp(c)) {
@@ -336,6 +338,34 @@ void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
 }
 //------------------------------------------------------------------------------
 void ProcCodeBlock(BlockLinesFetcher& blf, A2& a2) {
+  std::string line;
+  // Supported syntax
+  // 1) ABC
+  // 2) ABC(ARG1)
+  // 3) ABC(ARG1, ARG2, ....)
+  std::regex rgx_code(R"(\s*(\w+)(?:\((\w+)((?:\s?,\s?\w+)*)\))?)");
+  std::regex rgx_code_args(R"((\w+))");
+                                                           
+  while (blf.Next(line)) {
+    std::smatch match;
+    if (std::regex_match(line, match, rgx_code)) {
+      Instruction inst;
+      inst.func = match[1];
+      if (match[2].length() > 0) {
+        inst.args.push_back(match[2]);
+      }
+      if (match[3].length() > 0) {
+        std::string temp = match[3];
+        while (std::regex_search(temp, match, rgx_code_args)) {
+          inst.args.push_back(match[1]);
+          temp = match.suffix();
+        }
+      }
+      a2.instructions.push_back(std::move(inst));
+    } else {
+      // error !!!
+    }
+  }
 }
 //------------------------------------------------------------------------------
 std::unique_ptr<A2> ParseA2(std::istream& from) {
@@ -353,6 +383,9 @@ std::unique_ptr<A2> ParseA2(std::istream& from) {
         break;
       case EBlockType::Table:
         ProcTableBlock(*blf.get(), *a2.get());
+        break;
+      case EBlockType::Code:
+        ProcCodeBlock(*blf.get(), *a2.get());
         break;
     }
   }
@@ -389,9 +422,20 @@ void DumpTable(const std::vector<TableEntry>& table) {
   }
 }
 //------------------------------------------------------------------------------
+void DumpInstructions(const std::vector<Instruction>& insts) {
+  std::cout << std::endl << "instructions:" << std::endl;
+
+  for (auto& inst : insts) {
+    std::cout << "  " << inst.func << ": " <<
+      std::accumulate(inst.args.begin(), inst.args.end(), std::string(), 
+          [](auto& ac, auto& s) { return ac.empty() ? s : ac + ", " + s; })  << std::endl;
+  }
+}
+//------------------------------------------------------------------------------
 void DumpA2(const A2& a2) {
   DumpConstants(a2.constants, 0);
   DumpTable(a2.table);
+  DumpInstructions(a2.instructions);
 }
 
 }

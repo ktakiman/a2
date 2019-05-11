@@ -35,8 +35,12 @@ _preph:
   reset_adr: @reset
 
 reset:
-  NOP
-  B(reset)
-  'BITSET(ahb1.rcc.ahbenr, iopaen)
+    NOP
+  loop:
+    NOP
+    B(loop)
+    TEST(a, b)
+    TEST(a, b, c)
+    'BITSET(ahb1.rcc.ahbenr, iopaen)
 
   
