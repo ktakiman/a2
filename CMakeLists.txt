@@ -11,6 +11,9 @@ add_executable(a2
   ${SOURCE_DIR}/parser.cpp
   ${SOURCE_DIR}/assembler.h
   ${SOURCE_DIR}/assembler.cpp
+  ${SOURCE_DIR}/tokenizer.h
+  ${SOURCE_DIR}/tokenizer.cpp
+  ${SOURCE_DIR}/exception.h
 )
 
 message("------------------------------------")

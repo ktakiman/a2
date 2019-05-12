@@ -2,13 +2,6 @@
 
 #include <vector>
 
-/*
-namespace {
-  using namespace a2;
-  Piece Make
-}
-*/
-
 namespace {
 
 a2::Piece MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
