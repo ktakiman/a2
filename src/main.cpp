@@ -6,12 +6,21 @@
 #include "types.h"
 #include "parser.h"
 #include "assembler.h"
+#include "tokenizer.h"
 
 using namespace a2;
+
+void RunTest() {
+  std::cout << std::endl;
+  a2test::TestTokenizer();
+}
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     std::cout << "usage: a2.exe [input file]" << std::endl;
+    return 0;
+  } else if (argv[1] == std::string("-t")) {
+    RunTest();
     return 0;
   }
 

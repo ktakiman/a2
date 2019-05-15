@@ -1,8 +1,13 @@
 #pragma once
 
-enum EParseErrorCode {
-  gRegexError,
-  gIndentCount
+#include <exception>
+
+namespace a2 {
+
+enum class EParseErrorCode {
+  kSuccess,
+  kRegexError,
+  kIndentCount
 };
 
 class ParseException : std::exception {
@@ -11,3 +16,4 @@ class ParseException : std::exception {
     EParseErrorCode Code;
 };
 
+}

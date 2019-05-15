@@ -9,8 +9,14 @@ struct NamedValue {
   unsigned int value = 0;
   std::size_t indent = 0;
 
+  bool operator==(const NamedValue& other);
 };
+
 
 NamedValue TokenizeNamedValue(const std::string& s); 
 
+}
+
+namespace a2test {
+void TestTokenizer();
 }
