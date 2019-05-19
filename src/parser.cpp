@@ -4,6 +4,8 @@
 #include <numeric>
 #include <regex>
 
+#include "tokenizer.h"
+
 #include <stdlib.h> // for atoi, which can be replaced with std::stoi (except minGW/gcc?)
 
 namespace a2 {
@@ -141,41 +143,37 @@ void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A
   std::string line;
   while (blf.Next(line)) {
 
-    std::size_t indent = 0;
-    unsigned int value = 0;
-    std::string name;
+    auto nv = TokenizeNamedConstant(line);
 
-    ParseNameValueLine(line, &indent, &name, &value);
-
-    if (line[indent * INDENT_UNIT] == '.') { 
+    if (line[nv.indent * INDENT_UNIT] == '.') { 
       BitsInfo bi;
-      bi.name = name.substr(1, name.length() - 1);
-      bi.size = value;
+      bi.name = nv.name.substr(1, nv.name.length() - 1);
+      bi.size = nv.value;
       last->bits_info.push_back(bi);
       continue; 
     }
 
-    auto temp = CreateConstantsData(name, value);
+    auto temp = CreateConstantsData(nv.name, nv.value);
     auto p_temp = temp.get();
 
-    if (indent == last_indent) {
-      parent->children[name] = std::move(temp);
+    if (nv.indent == last_indent) {
+      parent->children[nv.name] = std::move(temp);
       last = p_temp;
-    } else if (indent > last_indent) {
-      last->children[name] = std::move(temp);
+    } else if (nv.indent > last_indent) {
+      last->children[nv.name] = std::move(temp);
       stack.push(parent);
       parent = last;
       last = p_temp;
-      last_indent = indent;
-    } else if (indent < last_indent) {
-      for (int i = 0; i < last_indent - indent; i++) {
+      last_indent = nv.indent;
+    } else if (nv.indent < last_indent) {
+      for (int i = 0; i < last_indent - nv.indent; i++) {
         last = parent;
         parent = stack.top();
         stack.pop();
       }
-      parent->children[name] = std::move(temp);
+      parent->children[nv.name] = std::move(temp);
       last = p_temp;
-      last_indent = indent;
+      last_indent = nv.indent;
     }
   }
 }

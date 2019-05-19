@@ -11,7 +11,6 @@
 using namespace a2;
 
 void RunTest() {
-  std::cout << std::endl;
   a2test::TestTokenizer();
 }
 
