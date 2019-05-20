@@ -66,7 +66,7 @@ NamedConstant TokenizeNamedConstant(const std::string& s) {
 
 void AppendRefed(const std::smatch& match, int index, ERefedOp op, NamedRef& named_ref) {
   if (match[index].length() > 0) {
-    named_ref.refs.emplace_back(Refed {ERefedType::kAddr, op, match[index]} );
+    named_ref.refs.emplace_back(Refed {ERefedType::kAddr, op, match[index].str().substr(1)} );
   } else if (match[index + 1].length() > 0) {
     named_ref.refs.emplace_back(Refed {ERefedType::kConst, op, match[index + 1]} );
   }
@@ -184,16 +184,17 @@ void TestTokenizer() {
   TestTokenizeNamedConstant(25, " c:0", EParseErrorCode::kIndentCount);
 
   PutTestHeader("TokenizeNamedRef");
-  TestTokenizeNamedRef(1, "r:@reset", EParseErrorCode::kSuccess, 0, "r", "@reset", ERefedType::kAddr);
-  TestTokenizeNamedRef(2, "r: @reset", EParseErrorCode::kSuccess, 0, "r", "@reset", ERefedType::kAddr);
+  TestTokenizeNamedRef(1, "r:@reset", EParseErrorCode::kSuccess, 0, "r", "reset", ERefedType::kAddr);
+  TestTokenizeNamedRef(2, "r: @reset", EParseErrorCode::kSuccess, 0, "r", "reset", ERefedType::kAddr);
   TestTokenizeNamedRef(3, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", ERefedType::kConst);
-  TestTokenizeNamedRef(4, "abc:  io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", ERefedType::kConst);
-  TestTokenizeNamedRef(5, "  abc:@reset", EParseErrorCode::kSuccess, 1, "abc", "@reset", ERefedType::kAddr);
+  TestTokenizeNamedRef(4, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", ERefedType::kConst);
+  TestTokenizeNamedRef(5, "abc:a.b.c.d", EParseErrorCode::kSuccess, 0, "abc", "a.b.c.d", ERefedType::kConst);
+  TestTokenizeNamedRef(6, "  abc:@reset", EParseErrorCode::kSuccess, 1, "abc", "reset", ERefedType::kAddr);
 
   TestTokenizeNamedRef(10, "R:a+b", EParseErrorCode::kSuccess, 0, "R", 2, "a", ERefedType::kConst, ERefedOp::kAdd, "b", ERefedType::kConst);
   TestTokenizeNamedRef(11, "R:a-b", EParseErrorCode::kSuccess, 0, "R", 2, "a", ERefedType::kConst, ERefedOp::kSubtract, "b", ERefedType::kConst);
-  TestTokenizeNamedRef(12, "R: @a + b ", EParseErrorCode::kSuccess, 0, "R", 2, "@a", ERefedType::kAddr, ERefedOp::kAdd, "b", ERefedType::kConst);
-  TestTokenizeNamedRef(13, "  R:  a - @b", EParseErrorCode::kSuccess, 1, "R", 2, "a", ERefedType::kConst, ERefedOp::kSubtract, "@b", ERefedType::kAddr);
+  TestTokenizeNamedRef(12, "R: @a + b ", EParseErrorCode::kSuccess, 0, "R", 2, "a", ERefedType::kAddr, ERefedOp::kAdd, "b", ERefedType::kConst);
+  TestTokenizeNamedRef(13, "  R:  a - @b", EParseErrorCode::kSuccess, 1, "R", 2, "a", ERefedType::kConst, ERefedOp::kSubtract, "b", ERefedType::kAddr);
   TestTokenizeNamedRef(15, "  stack_addr: flash_addr + flash_sz", EParseErrorCode::kSuccess, 1, 
       "stack_addr", 2, "flash_addr", ERefedType::kConst, ERefedOp::kAdd, "flash_sz", ERefedType::kConst);
 
