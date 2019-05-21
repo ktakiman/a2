@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "types.h"
+
 namespace a2 {
 
 struct NamedConstant {
@@ -12,24 +14,6 @@ struct NamedConstant {
 };
 
 NamedConstant TokenizeNamedConstant(const std::string& s); 
-
-enum class ERefedType {
-  kNone,
-  kConst,
-  kAddr
-};
-
-enum class ERefedOp {
-  kNone,
-  kAdd,
-  kSubtract
-};
-
-struct Refed {
-  ERefedType type = ERefedType::kNone;
-  ERefedOp op = ERefedOp::kNone;
-  std::string ref;
-};
 
 struct NamedRef {
   std::string name;

@@ -2,6 +2,7 @@
 
 #include <stack>
 #include <numeric>
+#include <algorithm>
 #include <regex>
 
 #include "tokenizer.h"
@@ -96,39 +97,6 @@ bool BlockLinesFetcher::Next(std::string& line) {
   return false;
 }
 //------------------------------------------------------------------------------
-void ParseNameValueLine(const std::string& line, std::size_t* indent, std::string* name, std::string* value) {
-  name->clear();
-  *indent = 0;
-  value->clear();
-
-  // TODO: replace these with regex
-  auto lead  = line.find_first_not_of(' ');
-
-  if (lead != std::string::npos) {
-    *indent = lead / INDENT_UNIT;
-
-    auto colon = line.find_first_of(':');
-    if (colon != std::string::npos) {
-      *name = line.substr(lead, colon - lead);
-
-      auto value_start = line.find_first_not_of(' ', colon + 1);
-      if (value_start != std::string::npos) {
-        *value = line.substr(value_start, line.length() - value_start);
-      }
-    }
-  }
-}
-//------------------------------------------------------------------------------
-void ParseNameValueLine(const std::string& line, std::size_t* indent, std::string* name, unsigned int* value) {
-  std::string s;
-  ParseNameValueLine(line, indent, name, &s);
-
-  if (!s.empty()) {
-    int base = (s.length() > 2 && s.substr(0, 2) == "0x") ? 16 : 10;
-    *value = strtoul(s.c_str(), nullptr, base);
-  }
-}
-//------------------------------------------------------------------------------
 void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A2& a2) {
   auto& root = a2.constants[block_name];
   if (!root) {
@@ -178,18 +146,6 @@ void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A
   }
 }
 //------------------------------------------------------------------------------
-enum class ETokenType {
-  None,
-  Decimal,
-  Hex,
-  Reference
-};
-
-//------------------------------------------------------------------------------
-inline bool IsArithmeticOp(char c) {
-  return c == '+' || c == '-' || c == '*' || c == '/';
-}
-//------------------------------------------------------------------------------
 unsigned int FindConstantValue(const std::string& s, const A2& a2) {
   std::string token;
   const ConstantsData* constants = nullptr;
@@ -221,117 +177,16 @@ unsigned int FindConstantValue(const std::string& s, const A2& a2) {
   return constants != nullptr ? constants->value : 0;
 }
 //------------------------------------------------------------------------------
-unsigned int ParseValue(const std::string& s, ETokenType type, const A2& a2) {
-  if (type == ETokenType::Decimal) {
-    return strtoul(s.c_str(), nullptr, 10);
-  } else if (type == ETokenType::Hex) {
-    return strtoul(s.c_str(), nullptr, 16);
-  } else if (type == ETokenType::Reference) {
-    return FindConstantValue(s, a2);
-  }
-
-  return 0;
-}
-//------------------------------------------------------------------------------
-unsigned int Add(unsigned int x, unsigned int y) { return x + y; }
-unsigned int Subtract(unsigned int x, unsigned int y) { return x - y; }
-unsigned int Multiply(unsigned int x, unsigned int y) { return x * y; }
-unsigned int Divide(unsigned int x, unsigned int y) { return x / y; }
-//------------------------------------------------------------------------------
-unsigned int ComputeFormula(const std::string& formula, const A2& a2) {
-
-  std::string token;
-  unsigned int value = 0;
-  ETokenType type = ETokenType::None;
-  unsigned int (*op)(unsigned int, unsigned int) = nullptr;
-
-  for (auto i = 0; i <= formula.length(); i++) {
-    char c = i == formula.length() ? ' ' : formula[i];
-
-    if (IsArithmeticOp(c)) {
-      if (!token.empty()) {
-        int temp = ParseValue(token, type, a2);
-        value = op == nullptr ? temp : op(value, temp);
-        token.clear();
-        op = nullptr;
-        type = ETokenType::None;
-      }
-
-      if (c == '+') { op = Add; }
-      if (c == '-') { op = Subtract; }
-      if (c == '*') { op = Multiply; }
-      if (c == '/') { op = Divide; }
-    } else {
-      if (type == ETokenType::None) {
-        if (c != ' ') {
-          if (c == '0') {
-            type = ETokenType::Hex;
-          } else if ('1' <= c && c <= '9') {
-            type = ETokenType::Decimal;
-          } else {
-            type = ETokenType::Reference;
-          }
-          token += c;
-        }
-      } else {
-        if (c == ' ') {
-          int temp = ParseValue(token, type, a2);
-          value = op == nullptr ? temp : op(value, temp);
-          token.clear();
-          op = nullptr;
-          type = ETokenType::None;
-        } else {
-          if (type == ETokenType::Decimal) {
-            if ('0' <= c && c <= '9') {
-              token += c;
-            } else {
-              // error!!!
-            }
-          } else if (type == ETokenType::Hex) {
-            if (token.length() == 1) {
-              if (c == 'x') {
-                token += c;
-              } else {
-                // error !!
-              }
-            } else {
-              if (('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')) {
-                token += c;
-              } else {
-                // error !
-              }
-            }
-          } else if (type == ETokenType::Reference) {
-            token += c;
-          }
-        }
-      }
-    }
-  }
-
-  return value;
-}
-//------------------------------------------------------------------------------
 void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
   std::string line;
   while (blf.Next(line)) {
-    std::size_t indent = 0;
-    std::string name;
-    std::string value;
-    ParseNameValueLine(line, &indent, &name, &value);
+    auto named_ref = TokenizeNamedRef(line);
 
-    if (!value.empty()) {
-      TableEntry entry;
-      entry.name = name;
-      if (value[0] == '@') {
-        entry.dynamic = value.substr(1, value.length() - 1);
-        entry.value = 0;
-      } else {
-        entry.value = ComputeFormula(value, a2);
-      }
+    TableEntry entry;
+    entry.name = named_ref.name;
+    entry.value = named_ref.refs;
 
-      a2.table.push_back(entry);
-    }
+    a2.table.push_back(entry);
   }
 }
 //------------------------------------------------------------------------------
@@ -414,8 +269,9 @@ void DumpTable(const std::vector<TableEntry>& table) {
 
   for (auto& entry : table) {
     std::cout << "  " << entry.name << ": ";
-    if (entry.dynamic.empty()) { std::cout << std::hex << "0x" <<entry.value; }
-    else { std::cout << entry.dynamic; }
+    std::for_each(entry.value.begin(), entry.value.end(), [](const auto& ref) {
+        std::cout << (ref.op != ERefedOp::kNone ? (ref.op == ERefedOp::kAdd ? " + " : " - ") : "") << ref.ref;
+    });
     std::cout << std::endl;
   }
 }

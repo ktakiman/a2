@@ -5,7 +5,7 @@
 #include <vector>
 #include <unordered_map>
 
-constexpr int INDENT_UNIT = 2;
+constexpr std::size_t INDENT_UNIT = 2;
 
 namespace a2 {
 
@@ -24,20 +24,38 @@ enum class ConstantsType {
 
 struct BitsInfo {
   std::string name;
-  unsigned int size;
+  unsigned int size = 0;
 };
 
 struct ConstantsData {
   std::string name;
-  unsigned int value;
+  unsigned int value = 0;;
   std::unordered_map<std::string, std::unique_ptr<ConstantsData>> children;
   std::vector<BitsInfo> bits_info;
 };
 
+enum class ERefedType {
+  kNone,
+  kConst,
+  kAddr,
+  kNum
+};
+
+enum class ERefedOp {
+  kNone,
+  kAdd,
+  kSubtract
+};
+
+struct Refed {
+  ERefedType type = ERefedType::kNone;
+  ERefedOp op = ERefedOp::kNone;
+  std::string ref;
+  unsigned int num = 0;
+};
 struct TableEntry {
   std::string name;
-  unsigned int value;
-  std::string dynamic;  // takes the address of a function with name specified by this
+  std::vector<Refed> value;
 };
 
 struct Instruction {

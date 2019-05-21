@@ -37,6 +37,7 @@ void AssembleTable(const A2& a2, std::vector<Piece>& pieces) {
     piece.tag = entry.name;
     piece.size = 4;
 
+    /*
     if (entry.dynamic.empty()) {
       piece.resolved = true;
       piece.value = entry.value;
@@ -44,6 +45,7 @@ void AssembleTable(const A2& a2, std::vector<Piece>& pieces) {
       piece.link = entry.dynamic;
     }
     pieces.push_back(piece);
+    */
   }
 
   // default implementation of reset
