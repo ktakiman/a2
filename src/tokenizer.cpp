@@ -17,22 +17,28 @@
 #define RGX_HEX "(?:0[xX]([0-9a-fA-F]+))"
 #define RGX_NUM "(?:" RGX_INT "|" RGX_HEX ")"
 
-// named constant
-#define RGX_NC_NAME "((?:\\.?" RGX_NAME "|\\.\\*))"        // can start with '.', be just ".*", or plain name
 
-// named ref
 #define RGX_ADDR_REF "(@\\w+)"
 #define RGX_CONST_REF "(" RGX_NAME "(?:\\." RGX_NAME ")*)"
 #define RGX_ALL_REF "(?:" RGX_ADDR_REF "|" RGX_CONST_REF "|" RGX_NUM ")"
 
+#define RGX_ALL_REF_WITH_BLANK RGX_BLANK RGX_ALL_REF RGX_BLANK
+
 #define RGX_ARITH_OP "(\\+|-)"
+
+// named constant
+#define RGX_NC_NAME "((?:\\.?" RGX_NAME "|\\.\\*))"        // can start with '.', be just ".*", or plain name
+
+// instruction
+#define RGX_INST_NAME "([a-zA-Z]+)"
+ 
+namespace {
 
 std::regex gRgxNamedConstant(RGX_INDENT RGX_NC_NAME RGX_BLANK ":" RGX_BLANK RGX_NUM RGX_BLANK);
 
-std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_BLANK RGX_ALL_REF RGX_BLANK 
-    "(?:" RGX_ARITH_OP RGX_BLANK RGX_ALL_REF RGX_BLANK ")?");
+std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_ALL_REF_WITH_BLANK "(?:" RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK ")?");
 
-namespace {
+std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "\\((?:" RGX_ALL_REF_WITH_BLANK ")\\)" RGX_BLANK);
 
 using namespace a2;
 
@@ -105,67 +111,75 @@ namespace a2test {
 
 using namespace a2;
 
+template<typename F>
+void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
+  std::stringstream ss;
+
+  bool pass = false;
+  PutTestId(id, ss);
+  try {
+    if (f(ss)) {
+      pass = true;
+    }
+  } catch (const ParseException& pe) {
+    if (AssertEqual("exception", (int)exp_error, (int)pe.Code, ss)) {
+      pass = true;
+    }
+  } catch (...) { UnexpectedException(ss); }
+
+  if (pass) { out << "."; }
+  else { out << std::endl << ss.str(); }
+}
+// ----------------------------------------------------------------------------
 // Test TokenizeNamedConstant
+// ----------------------------------------------------------------------------
 void TestTnc(int id, const std::string& s, EParseErrorCode exp_error, 
     std::size_t exp_indent, const std::string& exp_name, unsigned int exp_value) {
 
-  PutTestId(id);
-
-  try {
+  Test(id, exp_error, std::cout, [&](std::ostream& out) {
     auto r = TokenizeNamedConstant(s);
     if (exp_error == EParseErrorCode::kSuccess) {
-      if (AssertEqual("name", exp_name, r.name) && 
-          AssertEqual("value", exp_value, r.value) && 
-          AssertEqual("indent", exp_indent, r.indent)) {
-        Passed();
-      }
-    } else {
-      ExceptionNotThrown((int)exp_error);
+      return AssertEqual("name", exp_name, r.name, out) && 
+          AssertEqual("value", exp_value, r.value, out) && 
+          AssertEqual("indent", exp_indent, r.indent, out);
     }
-  } catch (const ParseException& pe) {
-    if (AssertEqual("exception", (int)exp_error, (int)pe.Code)) {
-      Passed();
-    }
-  } catch (...) { UnexpectedException(); }
+    ExceptionNotThrown((int)exp_error, out);
+    return false;
+  });
 }
 
 void TestTnc(int id, const std::string& s, EParseErrorCode exp_error) {
   TestTnc(id, s, exp_error, 0, "", 0);
 }
 
-bool VerifyRefed(const std::string& exp_val, unsigned int exp_num, ERefedType exp_type, ERefedOp exp_op, const Refed& refed, int ref_index) {
+// ----------------------------------------------------------------------------
+// Test TokenizeNamedRef
+// ----------------------------------------------------------------------------
+bool VerifyRefed(const std::string& exp_val, unsigned int exp_num, ERefedType exp_type, ERefedOp exp_op, const Refed& refed, int ref_index, std::ostream& out) {
   auto s_ref = "ref" + std::to_string(ref_index);
   return 
-    AssertEqual((s_ref + " op").c_str(), (int)exp_op, (int)refed.op) && 
-    AssertEqual((s_ref + " type").c_str(), (int)exp_type, (int)refed.type) &&
-    ((refed.type != ERefedType::kConst && refed.type != ERefedType::kAddr) || AssertEqual((s_ref + " val").c_str(), exp_val, refed.ref)) &&
-  (refed.type != ERefedType::kNum || AssertEqual((s_ref + " num").c_str(), exp_num, refed.num));
+    AssertEqual((s_ref + " op").c_str(), (int)exp_op, (int)refed.op, out) && 
+    AssertEqual((s_ref + " type").c_str(), (int)exp_type, (int)refed.type, out) &&
+    ((refed.type != ERefedType::kConst && refed.type != ERefedType::kAddr) || AssertEqual((s_ref + " val").c_str(), exp_val, refed.ref, out)) &&
+  (refed.type != ERefedType::kNum || AssertEqual((s_ref + " num").c_str(), exp_num, refed.num, out));
 }
 
-// Test TokenizeNamedRef
 void TestTnr(int id, const std::string& s, EParseErrorCode exp_error, std::size_t exp_indent, 
     const std::string& exp_name, std::size_t exp_refct, const std::string& exp_val1, unsigned int exp_num1, ERefedType exp_type1, 
     ERefedOp exp_op2, const std::string& exp_val2, unsigned int exp_num2, ERefedType exp_type2) {
-  PutTestId(id);
 
-  try {
+  Test(id, exp_error, std::cout, [&](std::ostream& out) {
     auto r = TokenizeNamedRef(s);
     if (exp_error == EParseErrorCode::kSuccess) {
-      if (AssertEqual("indent", exp_indent, r.indent) &&
-          AssertEqual("name", exp_name, r.name) &&
-          AssertEqual("ref ct", exp_refct, r.refs.size()) &&
-          VerifyRefed(exp_val1, exp_num1, exp_type1, ERefedOp::kNone, r.refs[0], 1) &&
-          (exp_refct == 1 || VerifyRefed(exp_val2, exp_num2, exp_type2, exp_op2, r.refs[1], 2))) {
-        Passed();
-      }
-    } else {
-      ExceptionNotThrown((int)exp_error);
+      return AssertEqual("indent", exp_indent, r.indent, out) &&
+          AssertEqual("name", exp_name, r.name, out) &&
+          AssertEqual("ref ct", exp_refct, r.refs.size(), out) &&
+          VerifyRefed(exp_val1, exp_num1, exp_type1, ERefedOp::kNone, r.refs[0], 1, out) &&
+          (exp_refct == 1 || VerifyRefed(exp_val2, exp_num2, exp_type2, exp_op2, r.refs[1], 2, out));
     }
-  } catch (const ParseException& pe) {
-    if (AssertEqual("exception", (int)exp_error, (int)pe.Code)) {
-      Passed();
-    }
-  } catch (...) { UnexpectedException(); }
+
+    ExceptionNotThrown((int)exp_error, out);
+  });
 }
 
 void TestTnr(int id, const std::string& s, EParseErrorCode exp_error, std::size_t exp_indent, 
@@ -179,7 +193,7 @@ void TestTnr(int id, const std::string& s, EParseErrorCode exp_error) {
 }
 
 void TestTokenizer() {
-  PutTestHeader("TokenizeNamedConstant");
+  PutTestHeader("TokenizeNamedConstant", std::cout);
   TestTnc(1, "N:0", EParseErrorCode::kSuccess, 0, "N", 0);
   TestTnc(2, "n:1", EParseErrorCode::kSuccess, 0, "n", 1);
   TestTnc(3, "  trick:10", EParseErrorCode::kSuccess, 1, "trick", 10);
@@ -195,8 +209,9 @@ void TestTokenizer() {
   TestTnc(21, "c.", EParseErrorCode::kRegexError);   // '.' only allowed at the beginning of name
   TestTnc(22, ".**", EParseErrorCode::kRegexError);   // '.*' is the only valid usage of '*'
   TestTnc(25, " c:0", EParseErrorCode::kIndentCount);
+  std::cout << std::endl;
 
-  PutTestHeader("TokenizeNamedRef");
+  PutTestHeader("TokenizeNamedRef", std::cout);
   TestTnr(1, "r:@reset", EParseErrorCode::kSuccess, 0, "r", "reset", 0, ERefedType::kAddr);
   TestTnr(2, "r: @reset", EParseErrorCode::kSuccess, 0, "r", "reset", 0, ERefedType::kAddr);
   TestTnr(3, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", 0, ERefedType::kConst);
@@ -223,6 +238,7 @@ void TestTokenizer() {
   TestTnr(31, "r:+@a", EParseErrorCode::kRegexError);
   TestTnr(32, "r:a++b", EParseErrorCode::kRegexError);
   TestTnr(33, "r:a + b + c", EParseErrorCode::kRegexError);
+  std::cout << std::endl;
 }
 
 }

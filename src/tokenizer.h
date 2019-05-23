@@ -23,6 +23,12 @@ struct NamedRef {
 
 NamedRef TokenizeNamedRef(const std::string& s);
 
+struct Inst {
+  std::string op;
+
+
+};
+
 }
 
 namespace a2test {
