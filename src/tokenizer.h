@@ -24,10 +24,13 @@ struct NamedRef {
 NamedRef TokenizeNamedRef(const std::string& s);
 
 struct Inst {
-  std::string op;
-
-
+  std::string tag;
+  std::string func;
+  std::vector<Refed> args;
+  std::size_t indent = 0;
 };
+
+Inst TokenizeInstruction(const std::string& s);
 
 }
 

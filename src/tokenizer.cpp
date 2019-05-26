@@ -38,7 +38,7 @@ std::regex gRgxNamedConstant(RGX_INDENT RGX_NC_NAME RGX_BLANK ":" RGX_BLANK RGX_
 
 std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_ALL_REF_WITH_BLANK "(?:" RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK ")?");
 
-std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "\\((?:" RGX_ALL_REF_WITH_BLANK ")\\)" RGX_BLANK);
+std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ALL_REF_WITH_BLANK "(?:" RGX_BLANK "," RGX_ALL_REF_WITH_BLANK ")*" ")\\))?" RGX_BLANK);
 
 using namespace a2;
 
@@ -72,13 +72,13 @@ NamedConstant TokenizeNamedConstant(const std::string& s) {
 
 void AppendRefed(const std::smatch& match, int index, ERefedOp op, NamedRef& named_ref) {
   if (match[index].length() > 0) {
-    named_ref.refs.emplace_back(Refed {ERefedType::kAddr, op, match[index].str().substr(1)} );
+    named_ref.refs.emplace_back(Refed {match[index].str(), op});
   } else if (match[index + 1].length() > 0) {
-    named_ref.refs.emplace_back(Refed {ERefedType::kConst, op, match[index + 1]} );
+    named_ref.refs.emplace_back(Refed {match[index + 1], op});
   } else if (match[index + 2].length() > 0) {
-    named_ref.refs.emplace_back(Refed {ERefedType::kNum, op, "", std::stoul(match[index + 2])} );
+    named_ref.refs.emplace_back(Refed {std::stoul(match[index + 2]), op});
   } else if (match[index + 3].length() > 0) {
-    named_ref.refs.emplace_back(Refed {ERefedType::kNum, op, "", std::stoul(match[index + 3], 0, 16)} );
+    named_ref.refs.emplace_back(Refed {std::stoul(match[index + 3], 0, 16), op});
   }
 }
 
@@ -98,8 +98,19 @@ NamedRef TokenizeNamedRef(const std::string& s) {
     }
 
     return named_ref;
+  } else {
+    throw ParseException(EParseErrorCode::kRegexError);
   }
-  else {
+}
+
+Inst TokenizeInstruction(const std::string& s) {
+  std::smatch match;
+  if (std::regex_match(s, match, gRgxInst)) {
+    Inst inst;
+    inst.indent = CountIndent(match[1].str());
+    inst.func = match[2];
+    return inst;
+  } else {
     throw ParseException(EParseErrorCode::kRegexError);
   }
 }
@@ -110,6 +121,7 @@ NamedRef TokenizeNamedRef(const std::string& s) {
 namespace a2test {
 
 using namespace a2;
+using CSR = const std::string&;
 
 template<typename F>
 void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
@@ -130,11 +142,30 @@ void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
   if (pass) { out << "."; }
   else { out << std::endl << ss.str(); }
 }
+
+bool VerifyRefed(int ref_index, const Refed& expected, const Refed& actual, std::ostream& out) {
+  auto s_ref = "ref" + std::to_string(ref_index);
+  return 
+    AssertEqual((s_ref + " op").c_str(), (int)expected.op, (int)actual.op, out) && 
+    AssertEqual((s_ref + " type").c_str(), (int)expected.type, (int)actual.type, out) &&
+    ((expected.type != ERefedType::kConst && expected.type != ERefedType::kAddr) || 
+      AssertEqual((s_ref + " val").c_str(), expected.ref, actual.ref, out)) &&
+    (expected.type != ERefedType::kNum || 
+     AssertEqual((s_ref + " num").c_str(), expected.num, actual.num, out));
+}
+
+bool VerifyRefed(const std::vector<Refed>& expected, const std::vector<Refed>& actual, std::ostream& out) {
+  if (!AssertEqual("arg_ct", expected.size(), actual.size(), out)) { return false; }
+  for (std::size_t i = 0; i < expected.size(); i++) {
+    if (!VerifyRefed(i, expected[i], actual[i], out)) { return false; }
+  }
+  return true;
+}
+
 // ----------------------------------------------------------------------------
 // Test TokenizeNamedConstant
 // ----------------------------------------------------------------------------
-void TestTnc(int id, const std::string& s, EParseErrorCode exp_error, 
-    std::size_t exp_indent, const std::string& exp_name, unsigned int exp_value) {
+void TestTnc(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_name, unsigned int exp_value) {
 
   Test(id, exp_error, std::cout, [&](std::ostream& out) {
     auto r = TokenizeNamedConstant(s);
@@ -148,49 +179,57 @@ void TestTnc(int id, const std::string& s, EParseErrorCode exp_error,
   });
 }
 
-void TestTnc(int id, const std::string& s, EParseErrorCode exp_error) {
+void TestTnc(int id, CSR s, EParseErrorCode exp_error) {
   TestTnc(id, s, exp_error, 0, "", 0);
 }
 
 // ----------------------------------------------------------------------------
 // Test TokenizeNamedRef
 // ----------------------------------------------------------------------------
-bool VerifyRefed(const std::string& exp_val, unsigned int exp_num, ERefedType exp_type, ERefedOp exp_op, const Refed& refed, int ref_index, std::ostream& out) {
-  auto s_ref = "ref" + std::to_string(ref_index);
-  return 
-    AssertEqual((s_ref + " op").c_str(), (int)exp_op, (int)refed.op, out) && 
-    AssertEqual((s_ref + " type").c_str(), (int)exp_type, (int)refed.type, out) &&
-    ((refed.type != ERefedType::kConst && refed.type != ERefedType::kAddr) || AssertEqual((s_ref + " val").c_str(), exp_val, refed.ref, out)) &&
-  (refed.type != ERefedType::kNum || AssertEqual((s_ref + " num").c_str(), exp_num, refed.num, out));
-}
-
-void TestTnr(int id, const std::string& s, EParseErrorCode exp_error, std::size_t exp_indent, 
-    const std::string& exp_name, std::size_t exp_refct, const std::string& exp_val1, unsigned int exp_num1, ERefedType exp_type1, 
-    ERefedOp exp_op2, const std::string& exp_val2, unsigned int exp_num2, ERefedType exp_type2) {
-
+void TestTnr(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_name, const std::vector<Refed>& expected_args) {
   Test(id, exp_error, std::cout, [&](std::ostream& out) {
     auto r = TokenizeNamedRef(s);
     if (exp_error == EParseErrorCode::kSuccess) {
       return AssertEqual("indent", exp_indent, r.indent, out) &&
           AssertEqual("name", exp_name, r.name, out) &&
-          AssertEqual("ref ct", exp_refct, r.refs.size(), out) &&
-          VerifyRefed(exp_val1, exp_num1, exp_type1, ERefedOp::kNone, r.refs[0], 1, out) &&
-          (exp_refct == 1 || VerifyRefed(exp_val2, exp_num2, exp_type2, exp_op2, r.refs[1], 2, out));
+          VerifyRefed(expected_args, r.refs, out);
     }
 
     ExceptionNotThrown((int)exp_error, out);
+    return false;
   });
 }
 
-void TestTnr(int id, const std::string& s, EParseErrorCode exp_error, std::size_t exp_indent, 
-    const std::string& exp_name, const std::string& exp_val, unsigned int exp_num, ERefedType exp_type) {
-  TestTnr(id, s, exp_error, exp_indent, exp_name, 1, exp_val, exp_num, exp_type, 
-      ERefedOp::kNone, "", 0, ERefedType::kNone);
+void TestTnr(int id, CSR s, EParseErrorCode exp_error) {
+  TestTnr(id, s, exp_error, 0, "", {});
 }
 
-void TestTnr(int id, const std::string& s, EParseErrorCode exp_error) {
-  TestTnr(id, s, exp_error, 0, "", "", 0, ERefedType::kNone);
+// ----------------------------------------------------------------------------
+// Test TokenizeInstruction
+// ----------------------------------------------------------------------------
+void TestTni(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_func, const std::vector<Refed>& exp_args) {
+  Test(id, exp_error, std::cout, [&](std::ostream& out) {
+    auto inst = TokenizeInstruction(s);
+    if (exp_error == EParseErrorCode::kSuccess) {
+      return 
+        AssertEqual("indent", exp_indent, inst.indent, out) && 
+        AssertEqual("func", exp_func, inst.func, out) &&
+        VerifyRefed(exp_args, inst.args, out);
+    }
+
+    ExceptionNotThrown((int)exp_error, out);
+    return false;
+  });
 }
+
+void TestTni(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_func) {
+  TestTni(id, s, exp_error, exp_indent, exp_func, {});
+}
+
+void TestTni(int id, CSR s, EParseErrorCode exp_error) {
+  TestTni(id, s, exp_error, 0, "");
+}
+
 
 void TestTokenizer() {
   PutTestHeader("TokenizeNamedConstant", std::cout);
@@ -212,22 +251,21 @@ void TestTokenizer() {
   std::cout << std::endl;
 
   PutTestHeader("TokenizeNamedRef", std::cout);
-  TestTnr(1, "r:@reset", EParseErrorCode::kSuccess, 0, "r", "reset", 0, ERefedType::kAddr);
-  TestTnr(2, "r: @reset", EParseErrorCode::kSuccess, 0, "r", "reset", 0, ERefedType::kAddr);
-  TestTnr(3, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", 0, ERefedType::kConst);
-  TestTnr(4, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", "io.pina", 0, ERefedType::kConst);
-  TestTnr(5, "abc:a.b.c.d", EParseErrorCode::kSuccess, 0, "abc", "a.b.c.d", 0, ERefedType::kConst);
-  TestTnr(6, "  abc:@reset", EParseErrorCode::kSuccess, 1, "abc", "reset", 0, ERefedType::kAddr);
-  TestTnr(7, "r:3", EParseErrorCode::kSuccess, 0, "r", "", 3, ERefedType::kNum);
-  TestTnr(8, "r:0xa3", EParseErrorCode::kSuccess, 0, "r", "", 0xa3, ERefedType::kNum);
-  TestTnr(9, "  int_handler:@int + 1", EParseErrorCode::kSuccess, 1, "int_handler", 2, "int", 0, ERefedType::kAddr, ERefedOp::kAdd, "", 1, ERefedType::kNum);
+  TestTnr(1, "r:@reset", EParseErrorCode::kSuccess, 0, "r", {{"@reset"}});
+  TestTnr(2, "r: @reset", EParseErrorCode::kSuccess, 0, "r", {{"@reset"}});
+  TestTnr(3, "abc:io.pina", EParseErrorCode::kSuccess, 0, "abc", {{"io.pina"}});
+  TestTnr(5, "abc:a.b.c.d", EParseErrorCode::kSuccess, 0, "abc", {{"a.b.c.d"}});
+  TestTnr(6, "  abc:@reset", EParseErrorCode::kSuccess, 1, "abc", {{"@reset"}});
+  TestTnr(7, "r:3", EParseErrorCode::kSuccess, 0, "r", {{3}});
+  TestTnr(8, "r:0xa3", EParseErrorCode::kSuccess, 0, "r", {{0xa3}});
+  TestTnr(9, "  int_handler:@int + 1", EParseErrorCode::kSuccess, 1, "int_handler", {{"@int"}, {1, ERefedOp::kAdd}});
 
 
-  TestTnr(10, "R:a+b", EParseErrorCode::kSuccess, 0, "R", 2, "a", 0, ERefedType::kConst, ERefedOp::kAdd, "b", 0, ERefedType::kConst);
-  TestTnr(11, "R:a-b", EParseErrorCode::kSuccess, 0, "R", 2, "a", 0, ERefedType::kConst, ERefedOp::kSubtract, "b", 0, ERefedType::kConst);
-  TestTnr(12, "R: @a + b ", EParseErrorCode::kSuccess, 0, "R", 2, "a", 0, ERefedType::kAddr, ERefedOp::kAdd, "b", 0, ERefedType::kConst);
-  TestTnr(13, "  R:  a - @b", EParseErrorCode::kSuccess, 1, "R", 2, "a", 0, ERefedType::kConst, ERefedOp::kSubtract, "b", 0, ERefedType::kAddr);
-  TestTnr(15, "  stack_addr: flash_addr + flash_sz", EParseErrorCode::kSuccess, 1, "stack_addr", 2, "flash_addr", 0, ERefedType::kConst, ERefedOp::kAdd, "flash_sz", 0, ERefedType::kConst);
+  TestTnr(10, "R:a+b", EParseErrorCode::kSuccess, 0, "R", {{"a"}, {"b", ERefedOp::kAdd}});
+  TestTnr(11, "R:a-b", EParseErrorCode::kSuccess, 0, "R", {{"a"}, {"b", ERefedOp::kSubtract}});
+  TestTnr(12, "R: @a + b ", EParseErrorCode::kSuccess, 0, "R", {{"@a"}, {"b", ERefedOp::kAdd}});
+  TestTnr(13, "  R:  a - @b", EParseErrorCode::kSuccess, 1, "R", {{"a"}, {"@b", ERefedOp::kSubtract}});
+  TestTnr(15, "  stack_addr: flash_addr + flash_sz", EParseErrorCode::kSuccess, 1, "stack_addr", {{"flash_addr"}, {"flash_sz", ERefedOp::kAdd}});
 
   TestTnr(20, " r:@ext1", EParseErrorCode::kIndentCount);
   TestTnr(21, "r:@@ext1", EParseErrorCode::kRegexError);
@@ -238,6 +276,20 @@ void TestTokenizer() {
   TestTnr(31, "r:+@a", EParseErrorCode::kRegexError);
   TestTnr(32, "r:a++b", EParseErrorCode::kRegexError);
   TestTnr(33, "r:a + b + c", EParseErrorCode::kRegexError);
+  std::cout << std::endl;
+
+  PutTestHeader("TokenizeInstruction", std::cout);
+  TestTni(1, "A", EParseErrorCode::kSuccess, 0, "A");
+  TestTni(2, "    ABC", EParseErrorCode::kSuccess, 2, "ABC");
+  /* TestTni(3, "ABC(1)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}}); */
+  /* TestTni(4, "SET(@boo)", EParseErrorCode::kSuccess, 0, "SET", {{"@boo"}}); */
+  /* TestTni(5, "SET(x.y.z)", EParseErrorCode::kSuccess, 0, "SET", {{"x.y.z"}}); */
+  /* TestTni(6, "ABC(@iopa, 0x16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}}); */
+  /* TestTni(7, "ABC(1, 2)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}, {2u}}); */
+
+  TestTni(50, " A", EParseErrorCode::kIndentCount);
+  TestTni(51, "A(", EParseErrorCode::kRegexError);
+  TestTni(52, "A)", EParseErrorCode::kRegexError);
   std::cout << std::endl;
 }
 

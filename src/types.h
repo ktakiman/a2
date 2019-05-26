@@ -52,7 +52,11 @@ struct Refed {
   ERefedOp op = ERefedOp::kNone;
   std::string ref;
   unsigned int num = 0;
+
+  Refed(const std::string& ref, ERefedOp op = ERefedOp::kNone);
+  Refed(unsigned int num, ERefedOp op = ERefedOp::kNone);
 };
+
 struct TableEntry {
   std::string name;
   std::vector<Refed> value;

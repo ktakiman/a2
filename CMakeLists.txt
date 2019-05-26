@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 14)
 
 add_executable(a2 
   ${SOURCE_DIR}/main.cpp
+  ${SOURCE_DIR}/types.h
+  ${SOURCE_DIR}/types.cpp
   ${SOURCE_DIR}/parser.h
   ${SOURCE_DIR}/parser.cpp
   ${SOURCE_DIR}/assembler.h
