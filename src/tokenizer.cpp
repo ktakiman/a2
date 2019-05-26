@@ -2,6 +2,7 @@
 
 #include <regex>
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 
 #include "exception.h"
@@ -13,7 +14,7 @@
 #define RGX_NAME "[a-zA-Z_]\\w*"
 
 #define RGX_NAME_CP "(" RGX_NAME ")"          // letter or '_' at pos0, letter or '_' or num at pos1+
-#define RGX_INT "([0-9]+)"
+#define RGX_INT "([0-9]+(?![xX]))"            // negative lookahead to avoid catching '0' of 0x123
 #define RGX_HEX "(?:0[xX]([0-9a-fA-F]+))"
 #define RGX_NUM "(?:" RGX_INT "|" RGX_HEX ")"
 
@@ -40,6 +41,8 @@ std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_ALL_REF_WITH_BLANK "(?:" 
 
 std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ALL_REF_WITH_BLANK "(?:" RGX_BLANK "," RGX_ALL_REF_WITH_BLANK ")*" ")\\))?" RGX_BLANK);
 
+std::regex gRgxAllRef(RGX_ALL_REF);
+
 using namespace a2;
 
 std::size_t CountIndent(const std::string& s) {
@@ -47,6 +50,19 @@ std::size_t CountIndent(const std::string& s) {
     throw ParseException(EParseErrorCode::kIndentCount);
   }
   return s.length() / INDENT_UNIT; 
+}
+
+template<typename T, typename F>
+std::vector<T> TokenizeRepeatedRgx(const std::string& s, std::regex& rgx, F f) {
+  std::vector<T> repeats;
+  std::string temp = s;
+  std::smatch match;
+  while (std::regex_search(temp, match, rgx)) {
+    repeats.push_back(f(match));
+    temp = match.suffix();
+  }
+
+  return repeats;
 }
 
 }
@@ -70,15 +86,15 @@ NamedConstant TokenizeNamedConstant(const std::string& s) {
   }
 }
 
-void AppendRefed(const std::smatch& match, int index, ERefedOp op, NamedRef& named_ref) {
+void AppendRefed(const std::smatch& match, int index, ERefedOp op, std::vector<Refed>& refs) {
   if (match[index].length() > 0) {
-    named_ref.refs.emplace_back(Refed {match[index].str(), op});
+    refs.emplace_back(Refed {match[index].str(), op});
   } else if (match[index + 1].length() > 0) {
-    named_ref.refs.emplace_back(Refed {match[index + 1], op});
+    refs.emplace_back(Refed {match[index + 1], op});
   } else if (match[index + 2].length() > 0) {
-    named_ref.refs.emplace_back(Refed {std::stoul(match[index + 2]), op});
+    refs.emplace_back(Refed {std::stoul(match[index + 2]), op});
   } else if (match[index + 3].length() > 0) {
-    named_ref.refs.emplace_back(Refed {std::stoul(match[index + 3], 0, 16), op});
+    refs.emplace_back(Refed {std::stoul(match[index + 3], 0, 16), op});
   }
 }
 
@@ -89,12 +105,12 @@ NamedRef TokenizeNamedRef(const std::string& s) {
     named_ref.indent = CountIndent(match[1].str());
     named_ref.name = match[2];
 
-    AppendRefed(match, 3, ERefedOp::kNone, named_ref);
+    AppendRefed(match, 3, ERefedOp::kNone, named_ref.refs);
 
     if (match[7] == "+") {
-      AppendRefed(match, 8, ERefedOp::kAdd, named_ref);
+      AppendRefed(match, 8, ERefedOp::kAdd, named_ref.refs);
     } else if (match[7] == "-") {
-      AppendRefed(match, 8, ERefedOp::kSubtract, named_ref);
+      AppendRefed(match, 8, ERefedOp::kSubtract, named_ref.refs);
     }
 
     return named_ref;
@@ -109,6 +125,12 @@ Inst TokenizeInstruction(const std::string& s) {
     Inst inst;
     inst.indent = CountIndent(match[1].str());
     inst.func = match[2];
+    inst.args = TokenizeRepeatedRgx<Refed>(match[3], gRgxAllRef, [](auto& match) {
+      std::vector<Refed> refed;
+      AppendRefed(match, 1, ERefedOp::kNone, refed);
+      // todo: handle arithmetic op with multiple refed
+      return refed[0];
+    });
     return inst;
   } else {
     throw ParseException(EParseErrorCode::kRegexError);
@@ -281,15 +303,22 @@ void TestTokenizer() {
   PutTestHeader("TokenizeInstruction", std::cout);
   TestTni(1, "A", EParseErrorCode::kSuccess, 0, "A");
   TestTni(2, "    ABC", EParseErrorCode::kSuccess, 2, "ABC");
-  /* TestTni(3, "ABC(1)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}}); */
-  /* TestTni(4, "SET(@boo)", EParseErrorCode::kSuccess, 0, "SET", {{"@boo"}}); */
-  /* TestTni(5, "SET(x.y.z)", EParseErrorCode::kSuccess, 0, "SET", {{"x.y.z"}}); */
-  /* TestTni(6, "ABC(@iopa, 0x16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}}); */
-  /* TestTni(7, "ABC(1, 2)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}, {2u}}); */
+  TestTni(3, "ABC(1)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}});
+  TestTni(4, "SET(@boo)", EParseErrorCode::kSuccess, 0, "SET", {{"@boo"}});
+  TestTni(5, "SET(x.y.z)", EParseErrorCode::kSuccess, 0, "SET", {{"x.y.z"}});
+  TestTni(6, "ABC(@iopa, 0x16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}, {0x16}});
+  TestTni(7, "ABC(@iopa, 0X16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}, {0x16}});
+  TestTni(8, "ABC(1, 2)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}, {2u}});
+  TestTni(9, "  JUMP(io.a, 0x18, @reset)", EParseErrorCode::kSuccess, 1, "JUMP", {{"io.a"}, {0x18}, {"@reset"}});
 
   TestTni(50, " A", EParseErrorCode::kIndentCount);
   TestTni(51, "A(", EParseErrorCode::kRegexError);
   TestTni(52, "A)", EParseErrorCode::kRegexError);
+  TestTni(53, "B(1,,3)", EParseErrorCode::kRegexError);
+  TestTni(54, "B(@@da)", EParseErrorCode::kRegexError);
+  TestTni(55, "B(ju@)", EParseErrorCode::kRegexError);
+  
+
   std::cout << std::endl;
 }
 
