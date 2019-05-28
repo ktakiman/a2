@@ -2,6 +2,17 @@
 
 namespace a2 {
   
+std::unordered_map<ERefedType, std::string> gRefedTypeToStr = {
+  { ERefedType::kNone, "kNone" },
+  { ERefedType::kConst, "kConst" },
+  { ERefedType::kAddr, "kAddr"},
+  { ERefedType::kNum, "kNum"}};
+
+std::unordered_map<ERefedOp, std::string> gRefedOpToStr {
+  { ERefedOp::kNone, "kNone" },
+  { ERefedOp::kAdd, "kAdd" },
+  { ERefedOp::kSubtract, "kSubtract" }};
+
 Refed::Refed(const std::string& ref, ERefedOp op) {
   if (ref[0] == '@') {
     this->ref = ref.substr(1);

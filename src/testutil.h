@@ -22,7 +22,7 @@ bool AssertEqual(const char* name, const T& expected, const T& actual, std::ostr
 void Passed(std::ostream& out) { std::cout << "pass" << std::endl; }
 
 template<typename T>
-void ExceptionNotThrown(const T& expected, std::ostream& out) { out << "* expected exception not thrown: " << (int)expected << std::endl; }
+void ExceptionNotThrown(const T& expected, std::ostream& out) { out << "* expected exception not thrown: " << expected << std::endl; }
 
 void UnexpectedException(std::ostream& out) { out << "* unexpected exception" << std::endl; }
 

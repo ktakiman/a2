@@ -16,6 +16,7 @@ add_executable(a2
   ${SOURCE_DIR}/tokenizer.h
   ${SOURCE_DIR}/tokenizer.cpp
   ${SOURCE_DIR}/exception.h
+  ${SOURCE_DIR}/exception.cpp
   ${SOURCE_DIR}/testutil.h
 )
 

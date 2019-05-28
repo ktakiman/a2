@@ -26,6 +26,9 @@
 #define RGX_ALL_REF_WITH_BLANK RGX_BLANK RGX_ALL_REF RGX_BLANK
 
 #define RGX_ARITH_OP "(\\+|-)"
+#define RGX_ARITH_OP_THEN_ALL_REF RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK
+
+#define RGX_ARITH_SERIES RGX_ALL_REF_WITH_BLANK "(:?" RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK ")*"
 
 // named constant
 #define RGX_NC_NAME "((?:\\.?" RGX_NAME "|\\.\\*))"        // can start with '.', be just ".*", or plain name
@@ -39,9 +42,13 @@ std::regex gRgxNamedConstant(RGX_INDENT RGX_NC_NAME RGX_BLANK ":" RGX_BLANK RGX_
 
 std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_ALL_REF_WITH_BLANK "(?:" RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK ")?");
 
-std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ALL_REF_WITH_BLANK "(?:" RGX_BLANK "," RGX_ALL_REF_WITH_BLANK ")*" ")\\))?" RGX_BLANK);
+std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ALL_REF_WITH_BLANK "(?:," RGX_ALL_REF_WITH_BLANK ")*" ")\\))?" RGX_BLANK);
+
+std::regex gRgxInst2(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ARITH_SERIES "(?:," RGX_ARITH_SERIES  ")*" ")\\))?" RGX_BLANK);
 
 std::regex gRgxAllRef(RGX_ALL_REF);
+std::regex gRgxArithOpThenAllRef(RGX_ARITH_OP_THEN_ALL_REF);
+std::regex gRgxArithSeries(RGX_ARITH_SERIES);
 
 using namespace a2;
 
@@ -68,6 +75,15 @@ std::vector<T> TokenizeRepeatedRgx(const std::string& s, std::regex& rgx, F f) {
 }
 
 namespace a2 {
+
+ERefedOp ParseArithOp(char c) {
+  switch (c) {
+    case '+': return ERefedOp::kAdd;
+    case '-': return ERefedOp::kSubtract;
+  }
+
+  throw ParseException(EParseErrorCode::kUnexpectedArithOp);
+}
 
 NamedConstant TokenizeNamedConstant(const std::string& s) {
   std::smatch match;
@@ -98,6 +114,20 @@ void AppendRefed(const std::smatch& match, int index, ERefedOp op, std::vector<R
   }
 }
 
+Refed CreateRefed(const std::smatch& match, int index, ERefedOp op = ERefedOp::kNone) {
+  if (match[index].length() > 0) {
+    return {match[index].str(), op};
+  } else if (match[index + 1].length() > 0) {
+    return {match[index + 1], op};
+  } else if (match[index + 2].length() > 0) {
+    return {std::stoul(match[index + 2]), op};
+  } else if (match[index + 3].length() > 0) {
+    return {std::stoul(match[index + 3], 0, 16), op};
+  }
+
+  throw ParseException(EParseErrorCode::kUnexpected);
+}
+
 NamedRef TokenizeNamedRef(const std::string& s) {
   std::smatch match;
   if (std::regex_match(s, match, gRgxNamedRef)) {
@@ -121,16 +151,28 @@ NamedRef TokenizeNamedRef(const std::string& s) {
 
 Inst TokenizeInstruction(const std::string& s) {
   std::smatch match;
-  if (std::regex_match(s, match, gRgxInst)) {
+  if (std::regex_match(s, match, gRgxInst2)) {
     Inst inst;
     inst.indent = CountIndent(match[1].str());
     inst.func = match[2];
-    inst.args = TokenizeRepeatedRgx<Refed>(match[3], gRgxAllRef, [](auto& match) {
-      std::vector<Refed> refed;
-      AppendRefed(match, 1, ERefedOp::kNone, refed);
-      // todo: handle arithmetic op with multiple refed
-      return refed[0];
-    });
+    if (match[3].length() > 0) {
+      inst.args = TokenizeRepeatedRgx<std::vector<Refed>>(match[3], gRgxArithSeries, [](auto& match_arith_series) {
+        std::vector<Refed> refed;
+        std::smatch match_first_arg;
+
+        auto temp = match_arith_series[0].str(); // needs to mak this L-value for some reason to call regex_search
+        if (std::regex_search(temp, match_first_arg, gRgxAllRef)) {
+          refed.push_back(CreateRefed(match_first_arg, 1));
+          auto more_args = TokenizeRepeatedRgx<Refed>(match_first_arg.suffix(), gRgxArithOpThenAllRef, [](auto& match_more_args) {
+             return CreateRefed(match_more_args, 2, ParseArithOp(match_more_args[1].str()[0]));
+          });
+          refed.insert(refed.end(), more_args.begin(), more_args.end());
+          return refed;
+        } else {
+          throw ParseException(EParseErrorCode::kUnexpected);
+        }
+      });
+    }
     return inst;
   } else {
     throw ParseException(EParseErrorCode::kRegexError);
@@ -156,7 +198,7 @@ void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
       pass = true;
     }
   } catch (const ParseException& pe) {
-    if (AssertEqual("exception", (int)exp_error, (int)pe.Code, ss)) {
+    if (AssertEqual("exception", gEParseErrorCodeToStr[exp_error], gEParseErrorCodeToStr[pe.Code], ss)) {
       pass = true;
     }
   } catch (...) { UnexpectedException(ss); }
@@ -168,8 +210,8 @@ void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
 bool VerifyRefed(int ref_index, const Refed& expected, const Refed& actual, std::ostream& out) {
   auto s_ref = "ref" + std::to_string(ref_index);
   return 
-    AssertEqual((s_ref + " op").c_str(), (int)expected.op, (int)actual.op, out) && 
-    AssertEqual((s_ref + " type").c_str(), (int)expected.type, (int)actual.type, out) &&
+    AssertEqual((s_ref + " op").c_str(), gRefedOpToStr[expected.op], gRefedOpToStr[actual.op], out) && 
+    AssertEqual((s_ref + " type").c_str(), gRefedTypeToStr[expected.type], gRefedTypeToStr[actual.type], out) &&
     ((expected.type != ERefedType::kConst && expected.type != ERefedType::kAddr) || 
       AssertEqual((s_ref + " val").c_str(), expected.ref, actual.ref, out)) &&
     (expected.type != ERefedType::kNum || 
@@ -180,6 +222,14 @@ bool VerifyRefed(const std::vector<Refed>& expected, const std::vector<Refed>& a
   if (!AssertEqual("arg_ct", expected.size(), actual.size(), out)) { return false; }
   for (std::size_t i = 0; i < expected.size(); i++) {
     if (!VerifyRefed(i, expected[i], actual[i], out)) { return false; }
+  }
+  return true;
+}
+
+bool VerifyRefed(const std::vector<std::vector<Refed>>& expected, const std::vector<std::vector<Refed>>& actual, std::ostream& out) {
+  if (!AssertEqual("arg_list_ct", expected.size(), actual.size(), out)) { return false; }
+  for (std::size_t i = 0; i < expected.size(); i++) {
+    if (!VerifyRefed(expected[i], actual[i], out)) { return false; }
   }
   return true;
 }
@@ -196,7 +246,7 @@ void TestTnc(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, C
           AssertEqual("value", exp_value, r.value, out) && 
           AssertEqual("indent", exp_indent, r.indent, out);
     }
-    ExceptionNotThrown((int)exp_error, out);
+    ExceptionNotThrown(gEParseErrorCodeToStr[exp_error], out);
     return false;
   });
 }
@@ -217,7 +267,7 @@ void TestTnr(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, C
           VerifyRefed(expected_args, r.refs, out);
     }
 
-    ExceptionNotThrown((int)exp_error, out);
+    ExceptionNotThrown(gEParseErrorCodeToStr[exp_error], out);
     return false;
   });
 }
@@ -229,7 +279,7 @@ void TestTnr(int id, CSR s, EParseErrorCode exp_error) {
 // ----------------------------------------------------------------------------
 // Test TokenizeInstruction
 // ----------------------------------------------------------------------------
-void TestTni(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_func, const std::vector<Refed>& exp_args) {
+void TestTni(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, CSR exp_func, const std::vector<std::vector<Refed>>& exp_args) {
   Test(id, exp_error, std::cout, [&](std::ostream& out) {
     auto inst = TokenizeInstruction(s);
     if (exp_error == EParseErrorCode::kSuccess) {
@@ -239,7 +289,7 @@ void TestTni(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, C
         VerifyRefed(exp_args, inst.args, out);
     }
 
-    ExceptionNotThrown((int)exp_error, out);
+    ExceptionNotThrown(gEParseErrorCodeToStr[exp_error], out);
     return false;
   });
 }
@@ -303,13 +353,20 @@ void TestTokenizer() {
   PutTestHeader("TokenizeInstruction", std::cout);
   TestTni(1, "A", EParseErrorCode::kSuccess, 0, "A");
   TestTni(2, "    ABC", EParseErrorCode::kSuccess, 2, "ABC");
-  TestTni(3, "ABC(1)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}});
-  TestTni(4, "SET(@boo)", EParseErrorCode::kSuccess, 0, "SET", {{"@boo"}});
-  TestTni(5, "SET(x.y.z)", EParseErrorCode::kSuccess, 0, "SET", {{"x.y.z"}});
-  TestTni(6, "ABC(@iopa, 0x16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}, {0x16}});
-  TestTni(7, "ABC(@iopa, 0X16)", EParseErrorCode::kSuccess, 0, "ABC", {{"@iopa"}, {0x16}});
-  TestTni(8, "ABC(1, 2)", EParseErrorCode::kSuccess, 0, "ABC", {{1u}, {2u}});
-  TestTni(9, "  JUMP(io.a, 0x18, @reset)", EParseErrorCode::kSuccess, 1, "JUMP", {{"io.a"}, {0x18}, {"@reset"}});
+  TestTni(3, "ABC(1)", EParseErrorCode::kSuccess, 0, "ABC", {{{1u}}});
+  TestTni(4, "SET(@boo)", EParseErrorCode::kSuccess, 0, "SET", {{{"@boo"}}});
+  TestTni(5, "SET(x.y.z)", EParseErrorCode::kSuccess, 0, "SET", {{{"x.y.z"}}});
+  TestTni(6, "ABC(@iopa, 0x16)", EParseErrorCode::kSuccess, 0, "ABC", {{{"@iopa"}}, {{0x16}}});
+  TestTni(7, "ABC(@iopa, 0X16)", EParseErrorCode::kSuccess, 0, "ABC", {{{"@iopa"}}, {{0x16}}});
+  TestTni(8, "ABC(1, 2)", EParseErrorCode::kSuccess, 0, "ABC", {{{1u}}, {{2u}}});
+  TestTni(9, "ABC(1 , 2)", EParseErrorCode::kSuccess, 0, "ABC", {{{1u}}, {{2u}}});
+  TestTni(10, "  JUMP(io.a, 0x18, @reset)", EParseErrorCode::kSuccess, 1, "JUMP", {{{"io.a"}}, {{0x18}}, {{"@reset"}}});
+
+  TestTni(20, "A(1 + 2)", EParseErrorCode::kSuccess, 0, "A", {{{1u}, {2u, ERefedOp::kAdd}}});
+  TestTni(21, "A(1 + 2 - 3)", EParseErrorCode::kSuccess, 0, "A", {{{1u}, {2u, ERefedOp::kAdd}, {3u, ERefedOp::kSubtract}}});
+  TestTni(22, "A(1 + 2, 3 + 4)", EParseErrorCode::kSuccess, 0, "A", {{{1u}, {2u, ERefedOp::kAdd}}, {{3u}, {4u, ERefedOp::kAdd}}});
+  TestTni(23, "  STR(ahb.rcc.cr, 0x20aa)", EParseErrorCode::kSuccess, 1, "STR", {{{"ahb.rcc.cr"}}, {{0x20aa}}});
+  TestTni(24, "  STR(ahb.rcc.cr, @int + 0x1)", EParseErrorCode::kSuccess, 1, "STR", {{{"ahb.rcc.cr"}}, {{"@int"}, {0x1, ERefedOp::kAdd}}});
 
   TestTni(50, " A", EParseErrorCode::kIndentCount);
   TestTni(51, "A(", EParseErrorCode::kRegexError);

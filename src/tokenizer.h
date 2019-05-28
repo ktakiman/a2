@@ -26,7 +26,7 @@ NamedRef TokenizeNamedRef(const std::string& s);
 struct Inst {
   std::string tag;
   std::string func;
-  std::vector<Refed> args;
+  std::vector<std::vector<Refed>> args;
   std::size_t indent = 0;
 };
 
