@@ -40,11 +40,9 @@ namespace {
 
 std::regex gRgxNamedConstant(RGX_INDENT RGX_NC_NAME RGX_BLANK ":" RGX_BLANK RGX_NUM RGX_BLANK);
 
-std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":" RGX_ALL_REF_WITH_BLANK "(?:" RGX_ARITH_OP RGX_ALL_REF_WITH_BLANK ")?");
+std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":(" RGX_ARITH_SERIES ")");
 
-std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ALL_REF_WITH_BLANK "(?:," RGX_ALL_REF_WITH_BLANK ")*" ")\\))?" RGX_BLANK);
-
-std::regex gRgxInst2(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ARITH_SERIES "(?:," RGX_ARITH_SERIES  ")*" ")\\))?" RGX_BLANK);
+std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ARITH_SERIES "(?:," RGX_ARITH_SERIES  ")*" ")\\))?" RGX_BLANK);
 
 std::regex gRgxAllRef(RGX_ALL_REF);
 std::regex gRgxArithOpThenAllRef(RGX_ARITH_OP_THEN_ALL_REF);
@@ -128,21 +126,31 @@ Refed CreateRefed(const std::smatch& match, int index, ERefedOp op = ERefedOp::k
   throw ParseException(EParseErrorCode::kUnexpected);
 }
 
+std::vector<Refed> TokenizeArithSeries(const std::string& s) {
+  std::vector<Refed> refed;
+  std::smatch match_first_ref; // does not start with arith op, needs a different regex obj
+
+  if (std::regex_search(s, match_first_ref, gRgxAllRef)) {
+    refed.push_back(CreateRefed(match_first_ref, 1));
+    auto more_args = TokenizeRepeatedRgx<Refed>(match_first_ref.suffix(), gRgxArithOpThenAllRef, [](auto& match_more_args) {
+       return CreateRefed(match_more_args, 2, ParseArithOp(match_more_args[1].str()[0]));
+    });
+    refed.insert(refed.end(), more_args.begin(), more_args.end());
+    return refed;
+  } else {
+    throw ParseException(EParseErrorCode::kUnexpected);
+  }
+
+  return refed;
+}
+
 NamedRef TokenizeNamedRef(const std::string& s) {
   std::smatch match;
   if (std::regex_match(s, match, gRgxNamedRef)) {
     NamedRef named_ref;
     named_ref.indent = CountIndent(match[1].str());
     named_ref.name = match[2];
-
-    AppendRefed(match, 3, ERefedOp::kNone, named_ref.refs);
-
-    if (match[7] == "+") {
-      AppendRefed(match, 8, ERefedOp::kAdd, named_ref.refs);
-    } else if (match[7] == "-") {
-      AppendRefed(match, 8, ERefedOp::kSubtract, named_ref.refs);
-    }
-
+    named_ref.refs = TokenizeArithSeries(match[3].str());
     return named_ref;
   } else {
     throw ParseException(EParseErrorCode::kRegexError);
@@ -151,26 +159,13 @@ NamedRef TokenizeNamedRef(const std::string& s) {
 
 Inst TokenizeInstruction(const std::string& s) {
   std::smatch match;
-  if (std::regex_match(s, match, gRgxInst2)) {
+  if (std::regex_match(s, match, gRgxInst)) {
     Inst inst;
     inst.indent = CountIndent(match[1].str());
     inst.func = match[2];
     if (match[3].length() > 0) {
       inst.args = TokenizeRepeatedRgx<std::vector<Refed>>(match[3], gRgxArithSeries, [](auto& match_arith_series) {
-        std::vector<Refed> refed;
-        std::smatch match_first_arg;
-
-        auto temp = match_arith_series[0].str(); // needs to mak this L-value for some reason to call regex_search
-        if (std::regex_search(temp, match_first_arg, gRgxAllRef)) {
-          refed.push_back(CreateRefed(match_first_arg, 1));
-          auto more_args = TokenizeRepeatedRgx<Refed>(match_first_arg.suffix(), gRgxArithOpThenAllRef, [](auto& match_more_args) {
-             return CreateRefed(match_more_args, 2, ParseArithOp(match_more_args[1].str()[0]));
-          });
-          refed.insert(refed.end(), more_args.begin(), more_args.end());
-          return refed;
-        } else {
-          throw ParseException(EParseErrorCode::kUnexpected);
-        }
+        return TokenizeArithSeries(match_arith_series[0].str());
       });
     }
     return inst;
@@ -338,6 +333,8 @@ void TestTokenizer() {
   TestTnr(12, "R: @a + b ", EParseErrorCode::kSuccess, 0, "R", {{"@a"}, {"b", ERefedOp::kAdd}});
   TestTnr(13, "  R:  a - @b", EParseErrorCode::kSuccess, 1, "R", {{"a"}, {"@b", ERefedOp::kSubtract}});
   TestTnr(15, "  stack_addr: flash_addr + flash_sz", EParseErrorCode::kSuccess, 1, "stack_addr", {{"flash_addr"}, {"flash_sz", ERefedOp::kAdd}});
+  TestTnr(16, "r:a - b + c", EParseErrorCode::kSuccess, 0, "r", {{"a"}, {"b", ERefedOp::kSubtract}, {"c", ERefedOp::kAdd}});
+  TestTnr(16, "  r:a.b.c + @reset + 1", EParseErrorCode::kSuccess, 1, "r", {{"a.b.c"}, {"@reset", ERefedOp::kAdd}, {1u, ERefedOp::kAdd}});
 
   TestTnr(20, " r:@ext1", EParseErrorCode::kIndentCount);
   TestTnr(21, "r:@@ext1", EParseErrorCode::kRegexError);
@@ -347,7 +344,6 @@ void TestTokenizer() {
   TestTnr(30, "r:@a+", EParseErrorCode::kRegexError);
   TestTnr(31, "r:+@a", EParseErrorCode::kRegexError);
   TestTnr(32, "r:a++b", EParseErrorCode::kRegexError);
-  TestTnr(33, "r:a + b + c", EParseErrorCode::kRegexError);
   std::cout << std::endl;
 
   PutTestHeader("TokenizeInstruction", std::cout);
