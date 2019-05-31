@@ -15,22 +15,9 @@ struct NamedConstant {
 
 NamedConstant TokenizeNamedConstant(const std::string& s); 
 
-struct NamedRef {
-  std::string name;
-  std::vector<Refed> refs;
-  std::size_t indent = 0;
-};
-
 NamedRef TokenizeNamedRef(const std::string& s);
 
-struct Inst {
-  std::string tag;
-  std::string func;
-  std::vector<std::vector<Refed>> args;
-  std::size_t indent = 0;
-};
-
-Inst TokenizeInstruction(const std::string& s);
+Instruction TokenizeInstruction(const std::string& s);
 
 }
 

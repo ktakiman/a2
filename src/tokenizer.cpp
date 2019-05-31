@@ -150,17 +150,17 @@ NamedRef TokenizeNamedRef(const std::string& s) {
     NamedRef named_ref;
     named_ref.indent = CountIndent(match[1].str());
     named_ref.name = match[2];
-    named_ref.refs = TokenizeArithSeries(match[3].str());
+    named_ref.value = TokenizeArithSeries(match[3].str());
     return named_ref;
   } else {
     throw ParseException(EParseErrorCode::kRegexError);
   }
 }
 
-Inst TokenizeInstruction(const std::string& s) {
+Instruction TokenizeInstruction(const std::string& s) {
   std::smatch match;
   if (std::regex_match(s, match, gRgxInst)) {
-    Inst inst;
+    Instruction inst;
     inst.indent = CountIndent(match[1].str());
     inst.func = match[2];
     if (match[3].length() > 0) {
@@ -258,8 +258,8 @@ void TestTnr(int id, CSR s, EParseErrorCode exp_error, std::size_t exp_indent, C
     auto r = TokenizeNamedRef(s);
     if (exp_error == EParseErrorCode::kSuccess) {
       return AssertEqual("indent", exp_indent, r.indent, out) &&
-          AssertEqual("name", exp_name, r.name, out) &&
-          VerifyRefed(expected_args, r.refs, out);
+        AssertEqual("name", exp_name, r.name, out) &&
+        VerifyRefed(expected_args, r.value, out);
     }
 
     ExceptionNotThrown(gEParseErrorCodeToStr[exp_error], out);
@@ -370,7 +370,6 @@ void TestTokenizer() {
   TestTni(53, "B(1,,3)", EParseErrorCode::kRegexError);
   TestTni(54, "B(@@da)", EParseErrorCode::kRegexError);
   TestTni(55, "B(ju@)", EParseErrorCode::kRegexError);
-  
 
   std::cout << std::endl;
 }

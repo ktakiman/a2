@@ -32,15 +32,15 @@ _preph:
 
 #header:
   stack_addr: flash_addr + flash_sz
-  reset_addr: @reset
+  reset_addr: @reset + 0x10
 
 reset:
     NOP
-  loop:
+  'loop:
     NOP
     B(loop)
     TEST(a, b)
-    TEST(a, b, c)
+    TEST(a + 0xabc, b, c)
     'BITSET(ahb1.rcc.ahbenr, iopaen)
 
   

@@ -37,6 +37,7 @@ enum class ERefedOp {
 
 extern std::unordered_map<ERefedType, std::string> gRefedTypeToStr;
 extern std::unordered_map<ERefedOp, std::string> gRefedOpToStr;
+extern std::unordered_map<ERefedOp, std::string> gRefedOpToChar;
 
 struct BitsInfo {
   std::string name;
@@ -61,19 +62,22 @@ struct Refed {
   Refed(unsigned int num, ERefedOp op = ERefedOp::kNone);
 };
 
-struct TableEntry {
+struct NamedRef {
   std::string name;
   std::vector<Refed> value;
+  unsigned int indent = 0;
 };
 
 struct Instruction {
+  std::string tag;
   std::string func;
-  std::vector<std::string> args;
+  std::vector<std::vector<Refed>> args;
+  unsigned int indent = 0;
 };
 
 struct A2 {
   std::unordered_map<std::string, std::unique_ptr<ConstantsData>> constants;
-  std::vector<TableEntry> table;
+  std::vector<NamedRef> table;
   std::vector<Instruction> instructions;
 };
 

@@ -13,6 +13,11 @@ std::unordered_map<ERefedOp, std::string> gRefedOpToStr {
   { ERefedOp::kAdd, "kAdd" },
   { ERefedOp::kSubtract, "kSubtract" }};
 
+std::unordered_map<ERefedOp, std::string> gRefedOpToChar {
+  { ERefedOp::kNone, "" },
+  { ERefedOp::kAdd, "+" },
+  { ERefedOp::kSubtract, "-" }};
+
 Refed::Refed(const std::string& ref, ERefedOp op) {
   if (ref[0] == '@') {
     this->ref = ref.substr(1);
