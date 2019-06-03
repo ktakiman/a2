@@ -44,6 +44,8 @@ std::regex gRgxNamedRef(RGX_INDENT RGX_NAME_CP ":(" RGX_ARITH_SERIES ")");
 
 std::regex gRgxInst(RGX_INDENT RGX_INST_NAME "(?:\\((" RGX_ARITH_SERIES "(?:," RGX_ARITH_SERIES  ")*" ")\\))?" RGX_BLANK);
 
+std::regex gRgxNamedTag(RGX_INDENT RGX_NAME_CP ":" RGX_BLANK);
+
 std::regex gRgxAllRef(RGX_ALL_REF);
 std::regex gRgxArithOpThenAllRef(RGX_ARITH_OP_THEN_ALL_REF);
 std::regex gRgxArithSeries(RGX_ARITH_SERIES);
@@ -174,7 +176,16 @@ Instruction TokenizeInstruction(const std::string& s) {
   }
 }
 
+std::tuple<bool, std::string> TryTokenizeNamedTag(const std::string& s) {
+  std::smatch match;
+  if (std::regex_match(s, match, gRgxNamedTag)) {
+    return {true, match[2].str()};
+  }
+
+  return {false,{}};
 }
+
+} // end anonymous namespace
 
 
 namespace a2test {
@@ -297,6 +308,18 @@ void TestTni(int id, CSR s, EParseErrorCode exp_error) {
   TestTni(id, s, exp_error, 0, "");
 }
 
+// ----------------------------------------------------------------------------
+// Test TryTokenizeNamedTag
+// ----------------------------------------------------------------------------
+TestTtnt(int id, CSR s, bool exp_result, CSR exp_tag) {
+  Test(id, EParseErrorCode::kSuccess, std::cout, [&](std::ostream& out) {
+    bool result = false;
+    std::string tag;
+    std::tie(result, tag) = TryTokenizeNamedTag(s);
+    return AssertEqual("result", exp_result, result, out) &&
+           AssertEqual("tag", exp_tag, tag, out);
+  });
+}
 
 void TestTokenizer() {
   PutTestHeader("TokenizeNamedConstant", std::cout);
@@ -370,6 +393,14 @@ void TestTokenizer() {
   TestTni(53, "B(1,,3)", EParseErrorCode::kRegexError);
   TestTni(54, "B(@@da)", EParseErrorCode::kRegexError);
   TestTni(55, "B(ju@)", EParseErrorCode::kRegexError);
+  std::cout << std::endl;
+
+  PutTestHeader("TryTokenizeNamedTag", std::cout);
+
+  TestTtnt(1, "A:", true, "A");
+  TestTtnt(2, " abc_:", true, "abc_");
+  TestTtnt(3, "a.b", false, "");
+  TestTtnt(4, "@a", false, "");
 
   std::cout << std::endl;
 }

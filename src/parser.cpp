@@ -227,8 +227,19 @@ void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
 
 void ProcCodeBlock(BlockLinesFetcher& blf, A2& a2) {
   std::string line;
+  std::string last_tag;
   while (blf.Next(line)) {
-    a2.instructions.push_back(TokenizeInstruction(line));
+    bool is_named_tag = false;
+    std::string tag;
+    std::tie(is_named_tag, tag) = TryTokenizeNamedTag(line);
+    if (is_named_tag) {
+      last_tag = tag;
+    } else {
+      auto inst = TokenizeInstruction(line);
+      inst.tag = last_tag;
+      a2.instructions.push_back(inst);
+      last_tag.clear();
+    }
   }
 }
 
@@ -321,7 +332,10 @@ void DumpInstructions(const std::vector<Instruction>& insts) {
   std::cout << std::endl << "instructions:" << std::endl;
 
   for (auto& inst : insts) {
-    std::cout << "  " << inst.func << ": " << ArithSeriesArgsToStr(inst.args) << std::endl;
+    if (!inst.tag.empty()) {
+      std::cout << "  " << inst.tag << std::endl;
+    }
+    std::cout << "    " << inst.func << ": " << ArithSeriesArgsToStr(inst.args) << std::endl;
   }
 }
 

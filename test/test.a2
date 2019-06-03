@@ -30,17 +30,13 @@ _preph:
     gpio_b:         0x0400
     gpio_c:         0x0800
 
-#header:
+#table:
   stack_addr: flash_addr + flash_sz
-  reset_addr: @reset + 0x10
+  reset_addr: @reset + 0x01
 
 reset:
-    NOP
-  'loop:
+  loop:
     NOP
     B(loop)
-    TEST(a, b)
-    TEST(a + 0xabc, b, c)
-    'BITSET(ahb1.rcc.ahbenr, iopaen)
 
   
