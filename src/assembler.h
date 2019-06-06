@@ -7,9 +7,9 @@
 
 namespace a2 {
 
-struct Piece {
-  int size;           // in bytes
-  unsigned int value;   // use lower 2 bytes if length == 2
+struct Bits {
+  int size;             // in bytes
+  unsigned int value;   // assume 32 bits max 
   bool resolved;
   std::string link;     // points to other piece (for address)
   std::string tag;      // lets other piece reference this piece

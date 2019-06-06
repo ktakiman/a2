@@ -19,6 +19,20 @@ bool AssertEqual(const char* name, const T& expected, const T& actual, std::ostr
   return true;
 }
 
+template<typename T>
+bool AssertEqual(const char* name, const std::vector<T>& expected, const std::vector<T>& actual, std::ostream& out) {
+  if (AssertEqual((name + std::string(" size")).c_str(), expected.size(), actual.size(), out)) {
+    for (int i = 0; i < expected.size(); i++) {
+      if (!AssertEqual((name + std::string(" at ") + std::to_string(i)).c_str(), expected[i], actual[i], out)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
 void Passed(std::ostream& out) { std::cout << "pass" << std::endl; }
 
 template<typename T>

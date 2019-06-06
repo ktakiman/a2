@@ -187,37 +187,6 @@ void ProcConstantsBlock(const std::string& block_name, BlockLinesFetcher& blf, A
   }
 }
 
-unsigned int FindConstantValue(const std::string& s, const A2& a2) {
-  std::string token;
-  const ConstantsData* constants = nullptr;
-  for (int i = 0; i <= s.length(); i++) {
-    char c = i == s.length() ? '.' :s[i];
-    if (c == '.') {
-      if (constants == nullptr) {
-        for (auto& pair : a2.constants) {
-          auto itr = pair.second->children.find(token);
-          if (itr != pair.second->children.end()) {
-            constants = itr->second.get();
-            token.clear();
-            break;
-          }
-        }
-      } else {
-        auto itr = constants->children.find(token);
-        if (itr != constants->children.end()) {
-          constants = itr->second.get();
-        }
-      }
-    } else {
-      token += c;
-    }
-  }
-
-  //std::cout << "FindConstant: " << s << ", " << constants->name << ": " << constants->value << std::endl;
-
-  return constants != nullptr ? constants->value : 0;
-}
-
 void ProcTableBlock(BlockLinesFetcher& blf, A2& a2) {
   std::string line;
   while (blf.Next(line)) {

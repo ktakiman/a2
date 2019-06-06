@@ -50,6 +50,9 @@ std::regex gRgxAllRef(RGX_ALL_REF);
 std::regex gRgxArithOpThenAllRef(RGX_ARITH_OP_THEN_ALL_REF);
 std::regex gRgxArithSeries(RGX_ARITH_SERIES);
 
+std::regex gRgxConstRef(RGX_CONST_REF);
+std::regex gRgxName(RGX_NAME);
+
 using namespace a2;
 
 std::size_t CountIndent(const std::string& s) {
@@ -183,6 +186,15 @@ std::tuple<bool, std::string> TryTokenizeNamedTag(const std::string& s) {
   }
 
   return {false,{}};
+}
+
+std::vector<std::string> TokenizeConstRef(const std::string& s) {
+  std::smatch match;
+  if (std::regex_match(s, match, gRgxConstRef)) {
+    return TokenizeRepeatedRgx<std::string>(s, gRgxName, [](auto& match_level) { return match_level[0]; });
+  }
+
+  return {};
 }
 
 } // end anonymous namespace
@@ -321,6 +333,16 @@ TestTtnt(int id, CSR s, bool exp_result, CSR exp_tag) {
   });
 }
 
+// ----------------------------------------------------------------------------
+// Test TokenizeConstRef
+// ----------------------------------------------------------------------------
+void TestTcr(int id, CSR s, EParseErrorCode exp_error, const std::vector<std::string>& exp_const_ref) {
+  Test(id, exp_error, std::cout, [&](std::ostream& out) {
+      auto cf = TokenizeConstRef(s);
+      return AssertEqual("const ref", exp_const_ref, cf, out);
+  });
+}
+
 void TestTokenizer() {
   PutTestHeader("TokenizeNamedConstant", std::cout);
   TestTnc(1, "N:0", EParseErrorCode::kSuccess, 0, "N", 0);
@@ -401,6 +423,15 @@ void TestTokenizer() {
   TestTtnt(2, " abc_:", true, "abc_");
   TestTtnt(3, "a.b", false, "");
   TestTtnt(4, "@a", false, "");
+  std::cout << std::endl;
+
+  PutTestHeader("TokenizeConstRef", std::cout);
+
+  TestTcr(1, "a", EParseErrorCode::kSuccess, {"a"});
+  TestTcr(2, "a.b.c", EParseErrorCode::kSuccess, {"a", "b", "c"});
+  TestTcr(3, "abc._efg", EParseErrorCode::kSuccess, {"abc", "_efg"});
+
+  TestTcr(10, "abc.@efg", EParseErrorCode::kRegexError, {});
 
   std::cout << std::endl;
 }

@@ -2,19 +2,47 @@
 
 #include <vector>
 
+#include "tokenizer.h"
+
 namespace {
 
-a2::Piece MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
-  a2::Piece p{};
-  p.tag = 
-  p.size = 2;
-  p.value = code;
-  return p;
+using namespace a2;
+
+a2::Bits MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
+  a2::Bits bits{};
+  bits.tag = 
+  bits.size = 2;
+  bits.value = code;
+  return bits;
+}
+
+unsigned int FetchConstantValue(const std::string& s, const A2& a2) {
+  const ConstantsData* constants = nullptr;
+  for (auto& token : TokenizeConstRef(s)) {
+    if (constants == nullptr) {
+      for (auto& pair : a2.constants) {
+        auto itr = pair.second->children.find(token);
+        if (itr != pair.second->children.end()) {
+          constants = itr->second.get();
+          break;
+        }
+      }
+    } else {
+      auto itr = constants->children.find(token);
+      if (itr != constants->children.end()) {
+        constants = itr->second.get();
+      }
+    }
+  }
+
+  // throw here if constant was not found???
+
+  return constants != nullptr ? constants->value : 0;
 }
 
 using namespace a2;
-void DumpPieces(const std::vector<Piece>& a2s) {
-  std::cout << std::endl << "--- pieces ---" << std::endl;
+void DumpBits(const std::vector<Bits>& a2s) {
+  std::cout << std::endl << "--- bits ---" << std::endl;
 
   for (auto& a2 : a2s) {
     std::cout << a2.tag << ": sz = " << a2.size << ", ";
@@ -31,20 +59,20 @@ void DumpPieces(const std::vector<Piece>& a2s) {
 
 namespace a2 {
 
-void AssembleTable(const A2& a2, std::vector<Piece>& pieces) {
+void AssembleTable(const A2& a2, std::vector<Bits>& bits) {
   for (const auto& entry : a2.table) {
-    Piece piece{};
-    piece.tag = entry.name;
-    piece.size = 4;
+    Bits bit{};
+    bit.tag = entry.name;
+    bit.size = 4;
 
     /*
     if (entry.dynamic.empty()) {
-      piece.resolved = true;
-      piece.value = entry.value;
+      bit.resolved = true;
+      bit.value = entry.value;
     } else {
-      piece.link = entry.dynamic;
+      bit.link = entry.dynamic;
     }
-    pieces.push_back(piece);
+    bits.push_back(bit);
     */
   }
 
@@ -53,10 +81,10 @@ void AssembleTable(const A2& a2, std::vector<Piece>& pieces) {
 }
 
 void Assemble(const A2& a2, std::ostream& binary) {
-  std::vector<Piece> pieces;
-  AssembleTable(a2, pieces);
+  std::vector<Bits> bits;
+  AssembleTable(a2, bits);
 
-  DumpPieces(pieces);
+  DumpBits(bits);
 }
 
 }

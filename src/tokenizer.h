@@ -22,6 +22,8 @@ Instruction TokenizeInstruction(const std::string& s);
 
 std::tuple<bool, std::string> TryTokenizeNamedTag(const std::string& s);
 
+std::vector<std::string> TokenizeConstRef(const std::string& s);
+
 }
 
 namespace a2test {
