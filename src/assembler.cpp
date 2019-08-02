@@ -16,7 +16,7 @@ a2::Bits MakeThumbInstruction(unsigned int code, const std::string& tag = "") {
   return bits;
 }
 
-unsigned int FetchConstantValue(const std::string& s, const A2& a2) {
+std::size_t FetchConstantValue(const std::string& s, const A2& a2) {
   const ConstantsData* constants = nullptr;
   for (auto& token : TokenizeConstRef(s)) {
     if (constants == nullptr) {

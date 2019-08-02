@@ -29,7 +29,7 @@ Refed::Refed(const std::string& ref, ERefedOp op) {
   this->op = op;
 }
 
-Refed::Refed(unsigned int num, ERefedOp op) {
+Refed::Refed(std::size_t num, ERefedOp op) {
   this->num = num;
   this->op = op;
   this->type = ERefedType::kNum;

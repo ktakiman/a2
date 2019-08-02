@@ -225,7 +225,7 @@ void Test(int id, EParseErrorCode exp_error, std::ostream& out, F f) {
   else { out << std::endl << ss.str(); }
 }
 
-bool VerifyRefed(int ref_index, const Refed& expected, const Refed& actual, std::ostream& out) {
+bool VerifyRefed(std::size_t ref_index, const Refed& expected, const Refed& actual, std::ostream& out) {
   auto s_ref = "ref" + std::to_string(ref_index);
   return 
     AssertEqual((s_ref + " op").c_str(), gRefedOpToStr[expected.op], gRefedOpToStr[actual.op], out) && 
@@ -323,7 +323,7 @@ void TestTni(int id, CSR s, EParseErrorCode exp_error) {
 // ----------------------------------------------------------------------------
 // Test TryTokenizeNamedTag
 // ----------------------------------------------------------------------------
-TestTtnt(int id, CSR s, bool exp_result, CSR exp_tag) {
+void TestTtnt(int id, CSR s, bool exp_result, CSR exp_tag) {
   Test(id, EParseErrorCode::kSuccess, std::cout, [&](std::ostream& out) {
     bool result = false;
     std::string tag;
